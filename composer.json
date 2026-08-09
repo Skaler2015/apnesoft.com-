@@ -1,0 +1,23 @@
+{
+    "name": "softwarehub/platform",
+    "description": "Smart software discovery, verification, comparison and official-download platform.",
+    "type": "project",
+    "license": "MIT",
+    "require": {
+        "php": ">=8.2",
+        "ext-pdo": "*",
+        "ext-json": "*",
+        "ext-openssl": "*"
+    },
+    "suggest": {
+        "ext-curl": "Faster, more reliable HTTP for the discovery engine and link checker."
+    },
+    "autoload": {
+        "psr-4": {
+            "App\\": "app/"
+        }
+    },
+    "config": {
+        "optimize-autoloader": true
+    }
+}

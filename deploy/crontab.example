@@ -1,0 +1,31 @@
+# SoftwareHub — example crontab
+# Edit paths to match your host, then: crontab deploy/crontab.example
+# Locks prevent overlapping runs, so overlapping schedules are safe.
+
+PHP=/usr/bin/php
+APP=/var/www/softwarehub
+
+# Discover new software + sync GitHub every 6 hours
+0 */6 * * *   $PHP $APP/cron/discover.php        >> $APP/storage/logs/cron.log 2>&1
+
+# RSS/Atom feeds every 3 hours
+30 */3 * * *  $PHP $APP/cron/rss-sync.php         >> $APP/storage/logs/cron.log 2>&1
+
+# Winget metadata daily at 02:15
+15 2 * * *    $PHP $APP/cron/winget-sync.php      >> $APP/storage/logs/cron.log 2>&1
+
+# Version checker every 6 hours (offset from discovery)
+0 3,9,15,21 * * *  $PHP $APP/cron/version-check.php >> $APP/storage/logs/cron.log 2>&1
+
+# Broken link checker daily at 04:00 (processes a bounded batch each run)
+0 4 * * *     $PHP $APP/cron/link-check.php       >> $APP/storage/logs/cron.log 2>&1
+
+# SEO + sitemap daily at 05:00
+0 5 * * *     $PHP $APP/cron/seo-update.php        >> $APP/storage/logs/cron.log 2>&1
+20 5 * * *    $PHP $APP/cron/sitemap.php           >> $APP/storage/logs/cron.log 2>&1
+
+# Backup daily at 01:00
+0 1 * * *     $PHP $APP/cron/backup.php            >> $APP/storage/logs/cron.log 2>&1
+
+# Cleanup weekly (Sunday 06:00)
+0 6 * * 0     $PHP $APP/cron/cleanup.php           >> $APP/storage/logs/cron.log 2>&1

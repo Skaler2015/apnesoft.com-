@@ -1,0 +1,24 @@
+# Environment / secrets
+.env
+
+# Storage (runtime)
+storage/logs/*
+storage/cache/*
+storage/locks/*
+storage/backups/*
+storage/uploads/*
+!storage/**/.gitkeep
+
+# Generated sitemaps
+public/sitemap.xml
+public/sitemaps/*.xml
+
+# Dependencies (none required, but if composer is used later)
+/vendor/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
