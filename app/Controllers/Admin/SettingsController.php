@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controllers\Admin;
 
 use App\Core\Auth;
+use App\Core\Config;
 use App\Core\Csrf;
 use App\Core\Session;
 use App\Core\Settings;
@@ -36,8 +37,52 @@ final class SettingsController extends AdminController
                 Settings::set($key, (string) $this->request->input($key), 'general');
             }
         }
+
+        // Uploaded logo / favicon override the URL fields.
+        $uploadError = false;
+        foreach (['logo' => 'logo_file', 'favicon' => 'favicon_file'] as $settingKey => $inputName) {
+            if (!empty($_FILES[$inputName]['tmp_name']) && is_uploaded_file($_FILES[$inputName]['tmp_name'])) {
+                $url = $this->handleUpload($_FILES[$inputName]);
+                if ($url !== null) {
+                    Settings::set($settingKey, $url, 'branding');
+                } else {
+                    $uploadError = true;
+                }
+            }
+        }
+
         $this->audit('settings.update');
-        Session::flash('ok', 'Settings saved.');
+        if ($uploadError) {
+            Session::flash('err', 'Image upload failed: use PNG/JPG/WEBP/SVG/ICO under 2 MB.');
+        } else {
+            Session::flash('ok', 'Settings saved.');
+        }
         $this->redirect(base_url('/admin/settings'));
+    }
+
+    /** Store an uploaded branding image and return its public URL, or null. */
+    private function handleUpload(array $file): ?string
+    {
+        if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+            return null;
+        }
+        if (($file['size'] ?? 0) <= 0 || $file['size'] > 2 * 1024 * 1024) {
+            return null;
+        }
+        $allowed = ['png' => 'png', 'jpg' => 'jpg', 'jpeg' => 'jpg', 'gif' => 'gif',
+                    'webp' => 'webp', 'svg' => 'svg', 'ico' => 'ico'];
+        $ext = strtolower(pathinfo((string) $file['name'], PATHINFO_EXTENSION));
+        if (!isset($allowed[$ext])) {
+            return null;
+        }
+        $dir = Config::get('paths.public') . '/assets/uploads';
+        if (!is_dir($dir) && !@mkdir($dir, 0775, true) && !is_dir($dir)) {
+            return null;
+        }
+        $name = 'brand-' . bin2hex(random_bytes(6)) . '.' . $allowed[$ext];
+        if (!move_uploaded_file($file['tmp_name'], $dir . '/' . $name)) {
+            return null;
+        }
+        return base_url('/assets/uploads/' . $name);
     }
 }

@@ -1,13 +1,33 @@
 <?php use App\Core\Csrf; $st = $settings; ?>
-<form method="post" action="<?= e(base_url('/admin/settings')) ?>" class="admin-form">
+<form method="post" action="<?= e(base_url('/admin/settings')) ?>" class="admin-form" enctype="multipart/form-data">
     <?= Csrf::field() ?>
     <div class="admin-panel">
         <h2>Branding</h2>
         <div class="form-grid">
             <label>Website name<input name="site_name" value="<?= e($st['site_name'] ?? '') ?>"></label>
             <label>Tagline<input name="tagline" value="<?= e($st['tagline'] ?? '') ?>"></label>
-            <label>Logo URL<input name="logo" value="<?= e($st['logo'] ?? '') ?>"></label>
-            <label>Favicon URL<input name="favicon" value="<?= e($st['favicon'] ?? '') ?>"></label>
+
+            <div class="col-2" style="display:flex;gap:24px;flex-wrap:wrap;align-items:flex-end;border-top:1px solid var(--border);padding-top:12px">
+                <div>
+                    <label style="margin-bottom:6px">Logo — upload image</label>
+                    <?php if (!empty($st['logo'])): ?>
+                        <div style="margin-bottom:6px"><img src="<?= e($st['logo']) ?>" alt="current logo" style="max-height:36px;max-width:180px;background:#fff;border-radius:6px;padding:4px"></div>
+                    <?php endif; ?>
+                    <input type="file" name="logo_file" accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif,image/x-icon">
+                    <div class="muted small">PNG/JPG/WEBP/SVG, under 2 MB. Or paste a URL below.</div>
+                </div>
+                <div>
+                    <label style="margin-bottom:6px">Favicon — upload image</label>
+                    <?php if (!empty($st['favicon'])): ?>
+                        <div style="margin-bottom:6px"><img src="<?= e($st['favicon']) ?>" alt="current favicon" style="max-height:32px;background:#fff;border-radius:6px;padding:4px"></div>
+                    <?php endif; ?>
+                    <input type="file" name="favicon_file" accept="image/png,image/x-icon,image/svg+xml">
+                    <div class="muted small">Square icon (32×32 or 512×512), under 2 MB.</div>
+                </div>
+            </div>
+
+            <label>Logo URL (optional)<input name="logo" value="<?= e($st['logo'] ?? '') ?>" placeholder="https://…"></label>
+            <label>Favicon URL (optional)<input name="favicon" value="<?= e($st['favicon'] ?? '') ?>" placeholder="https://…"></label>
             <label>Primary color<input name="primary_color" type="color" value="<?= e($st['primary_color'] ?? '#4f46e5') ?>"></label>
             <label>Secondary color<input name="secondary_color" type="color" value="<?= e($st['secondary_color'] ?? '#0ea5e9') ?>"></label>
             <label class="col-2">Footer text<input name="footer_text" value="<?= e($st['footer_text'] ?? '') ?>"></label>
