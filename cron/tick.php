@@ -4,6 +4,7 @@ require __DIR__ . '/_cli.php';
 
 use App\Core\Database;
 use App\Services\BulkImport;
+use App\Services\CatalogImport;
 use App\Services\DiscoveryEngine;
 use App\Services\JobRunner;
 use App\Services\LinkChecker;
@@ -30,6 +31,16 @@ $ad = JobRunner::run('auto_discovery', 'Auto-Discovery', function () {
     return ['processed' => $r['scanned'], 'created' => $r['created'], 'skipped' => $r['skipped']];
 });
 cron_out('auto_discovery', $ad);
+
+// 1c. Multi-platform catalogs (macOS/Homebrew, Linux/Flathub, Android/F-Droid).
+//     One catalog per hour, rotating, when auto-discovery is enabled.
+if ((int) (Database::scalar('SELECT `value` FROM settings WHERE `key` = "auto_discovery"') ?? 1) !== 0) {
+    $cat = JobRunner::run('catalog_import', 'Catalog Import', function () {
+        $r = CatalogImport::runRotating(150);
+        return ['processed' => $r['scanned'], 'created' => $r['created'], 'skipped' => $r['skipped']];
+    });
+    cron_out('catalog_import', $cat);
+}
 
 // 2. Verify a small batch of download/official links.
 $l = JobRunner::run('link_check', 'Link Checker', function () {

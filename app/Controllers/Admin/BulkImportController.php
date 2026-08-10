@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace App\Controllers\Admin;
 
 use App\Core\Csrf;
+use App\Core\Session;
 use App\Core\Settings;
 use App\Services\BulkImport;
+use App\Services\CatalogImport;
 
 /**
  * Browser-driven bulk importer. The page imports one batch per load and
@@ -37,6 +39,21 @@ final class BulkImportController extends AdminController
             'autoDiscovery' => (string) Settings::get('auto_discovery', '1') !== '0',
             'total'         => (int) \App\Core\Database::scalar('SELECT COUNT(*) FROM software WHERE status = "published"'),
         ]);
+    }
+
+    /** POST /admin/bulk-import/catalog — import one batch from a platform catalog. */
+    public function catalog(array $args = []): never
+    {
+        $this->requirePermission('software.manage');
+        Csrf::check($this->request);
+        $source = $this->request->str('source');
+        if (!in_array($source, CatalogImport::sources(), true)) {
+            $this->redirect(base_url('/admin/bulk-import'));
+        }
+        $r = CatalogImport::run($source, 150);
+        $label = ['homebrew' => 'macOS (Homebrew)', 'flathub' => 'Linux (Flathub)', 'fdroid' => 'Android (F-Droid)'][$source] ?? $source;
+        Session::flash('ok', "$label: added {$r['created']} new, {$r['skipped']} skipped. " . ($r['message'] ?? ''));
+        $this->redirect(base_url('/admin/bulk-import'));
     }
 
     /** POST /admin/bulk-import/toggle — turn hourly auto-discovery on/off. */

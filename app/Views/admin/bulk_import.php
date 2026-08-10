@@ -62,6 +62,24 @@ if ($autoContinue):
 </div>
 
 <div class="admin-panel">
+    <h2>Import by platform (official app catalogs)</h2>
+    <p class="muted">Pull real apps from official multi-platform catalogs. Each click imports a batch
+        (~150). The hourly cron also rotates through these automatically.</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">
+        <?php foreach (['fdroid' => '🤖 Android (F-Droid)', 'homebrew' => '🍎 macOS (Homebrew)', 'flathub' => '🐧 Linux (Flathub)'] as $src => $label): ?>
+            <form method="post" action="<?= e(base_url('/admin/bulk-import/catalog')) ?>" class="inline">
+                <?= Csrf::field() ?>
+                <input type="hidden" name="source" value="<?= e($src) ?>">
+                <button class="btn btn-sm btn-ghost"><?= e($label) ?></button>
+            </form>
+        <?php endforeach; ?>
+    </div>
+    <p class="muted small" style="margin-top:8px">Popular Play Store apps (WhatsApp, Instagram…) can be added via
+        <a href="<?= e(base_url('/admin/software/new')) ?>">+ Add Software</a> with their official Play Store link —
+        the Play Store itself has no public API to import from.</p>
+</div>
+
+<div class="admin-panel">
     <h2>Automatic hourly discovery</h2>
     <p class="muted">When on, the hourly cron keeps importing ~250 fresh real open-source
         apps from GitHub every hour — the catalog grows by itself, hands-off.</p>
