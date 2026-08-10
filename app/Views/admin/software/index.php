@@ -1,4 +1,7 @@
 <?php use App\Core\Csrf; use App\Core\View; ?>
+<div class="admin-toolbar">
+    <a class="btn btn-sm btn-primary" href="<?= e(base_url('/admin/software/new')) ?>">+ Add Software</a>
+</div>
 <form method="get" class="admin-toolbar" action="<?= e(base_url('/admin/software')) ?>">
     <input type="search" name="q" value="<?= e($q) ?>" placeholder="Search name / developer…">
     <select name="status" onchange="this.form.submit()">

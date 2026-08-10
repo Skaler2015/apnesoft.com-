@@ -68,6 +68,8 @@ $router->get('/admin', [DashboardController::class, 'index']);
 $router->get('/admin/notifications', [DashboardController::class, 'notifications']);
 
 $router->get('/admin/software', [SoftwareAdminController::class, 'index']);
+$router->get('/admin/software/new', [SoftwareAdminController::class, 'create']);
+$router->post('/admin/software/new', [SoftwareAdminController::class, 'store']);
 $router->get('/admin/software/{id}/edit', [SoftwareAdminController::class, 'edit']);
 $router->post('/admin/software/{id}/edit', [SoftwareAdminController::class, 'update']);
 $router->post('/admin/software/{id}/action', [SoftwareAdminController::class, 'action']);
