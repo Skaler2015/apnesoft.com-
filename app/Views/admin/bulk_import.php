@@ -66,11 +66,19 @@ if ($autoContinue):
     <p class="muted">Pull real apps from official multi-platform catalogs. Each click imports a batch
         (~150). The hourly cron also rotates through these automatically.</p>
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">
-        <?php foreach (['fdroid' => '🤖 Android (F-Droid)', 'homebrew' => '🍎 macOS (Homebrew)', 'flathub' => '🐧 Linux (Flathub)'] as $src => $label): ?>
+        <?php
+        $catButtons = [
+            'popular'    => '⭐ Popular apps',
+            'chocolatey' => '🪟 Windows (Chocolatey)',
+            'fdroid'     => '🤖 Android (F-Droid)',
+            'homebrew'   => '🍎 macOS (Homebrew)',
+            'flathub'    => '🐧 Linux (Flathub)',
+        ];
+        foreach ($catButtons as $src => $label): ?>
             <form method="post" action="<?= e(base_url('/admin/bulk-import/catalog')) ?>" class="inline">
                 <?= Csrf::field() ?>
                 <input type="hidden" name="source" value="<?= e($src) ?>">
-                <button class="btn btn-sm btn-ghost"><?= e($label) ?></button>
+                <button class="btn btn-sm <?= $src === 'popular' ? 'btn-primary' : 'btn-ghost' ?>"><?= e($label) ?></button>
             </form>
         <?php endforeach; ?>
     </div>

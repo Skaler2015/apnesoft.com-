@@ -16,34 +16,210 @@ use App\Support\Http;
  */
 final class CatalogImport
 {
-    private const SOURCES = ['homebrew', 'flathub', 'fdroid'];
+    /** Catalogs rotated through automatically by the cron. */
+    private const ROTATING = ['chocolatey', 'homebrew', 'flathub', 'fdroid'];
+
+    /** All sources triggerable manually from the admin. */
+    private const MANUAL = ['popular', 'chocolatey', 'fdroid', 'homebrew', 'flathub'];
 
     public static function sources(): array
     {
-        return self::SOURCES;
+        return self::MANUAL;
     }
 
     /** Run one batch for the named source. */
     public static function run(string $source, int $maxNew = 150): array
     {
         return match ($source) {
-            'homebrew' => self::homebrew($maxNew),
-            'flathub'  => self::flathub($maxNew),
-            'fdroid'   => self::fdroid($maxNew),
-            default    => self::zero('unknown source'),
+            'popular'    => self::popular(),
+            'chocolatey' => self::chocolatey($maxNew),
+            'homebrew'   => self::homebrew($maxNew),
+            'flathub'    => self::flathub($maxNew),
+            'fdroid'     => self::fdroid($maxNew),
+            default      => self::zero('unknown source'),
         };
     }
 
     /** Rotate through the catalogs (one per call) — used by the hourly cron. */
     public static function runRotating(int $maxNew = 150): array
     {
-        $turn = self::intSetting('catalog_turn', 0) % count(self::SOURCES);
+        $turn = self::intSetting('catalog_turn', 0) % count(self::ROTATING);
         self::setSetting('catalog_turn', (string) ($turn + 1));
-        $source = self::SOURCES[$turn];
+        $source = self::ROTATING[$turn];
         $r = self::run($source, $maxNew);
         $r['source'] = $source;
         return $r;
     }
+
+    // -- Windows: Chocolatey community feed (sorted by popularity) -------------
+    private static function chocolatey(int $maxNew): array
+    {
+        $off = self::intSetting('choco_off', 0);
+        $created = $skipped = $scanned = 0;
+        $pages = 0;
+
+        while ($created < $maxNew && $pages < 3) {
+            $url = 'https://community.chocolatey.org/api/v2/Search()?'
+                . '$filter=IsLatestVersion&$orderby=DownloadCount%20desc&$top=100&$skip=' . $off
+                . '&searchTerm=%27%27&targetFramework=%27%27&includePrerelease=false';
+            $resp = Http::get($url, ['Accept: application/atom+xml'], 30);
+            if ($resp['status'] !== 200 || $resp['body'] === '') {
+                break;
+            }
+            $entries = self::parseChocoXml($resp['body']);
+            if (empty($entries)) {
+                break;
+            }
+            foreach ($entries as $p) {
+                $scanned++;
+                $id = $p['Id'] ?? '';
+                if ($id === '') {
+                    $skipped++;
+                    continue;
+                }
+                $official = $p['ProjectUrl'] ?: ('https://community.chocolatey.org/packages/' . $id);
+                $dto = [
+                    'external_ref'          => 'choco:' . strtolower($id),
+                    'name'                  => $p['Title'] ?: $id,
+                    'developer_name'        => self::host($p['ProjectUrl'] ?? '') ?: ($p['Authors'] ?? ''),
+                    'official_website'      => $official,
+                    'official_download_url' => $official,
+                    'short_description'     => str_excerpt($p['Description'] ?? '', 300),
+                    'long_description'      => $p['Description'] ?? '',
+                    'version'               => $p['Version'] ?? null,
+                    'price_type'            => null,
+                    'is_open_source'        => 0,
+                    'os_slug'               => 'windows',
+                    'os_label'              => 'Windows',
+                    'logo'                  => $p['IconUrl'] ?? null,
+                    'signals'               => ($p['Description'] ?? '') . ' ' . ($p['Tags'] ?? ''),
+                ];
+                try {
+                    self::store($dto) ? $created++ : $skipped++;
+                } catch (\Throwable $e) {
+                    $skipped++;
+                }
+                if ($created >= $maxNew) {
+                    break;
+                }
+            }
+            $off += count($entries);
+            $pages++;
+        }
+        self::setSetting('choco_off', (string) $off);
+        return ['created' => $created, 'skipped' => $skipped, 'scanned' => $scanned, 'message' => 'imported ' . $created];
+    }
+
+    /** @return array<int, array<string,string>> flattened package properties */
+    private static function parseChocoXml(string $body): array
+    {
+        libxml_use_internal_errors(true);
+        $xml = simplexml_load_string($body);
+        if ($xml === false) {
+            return [];
+        }
+        $atom = $xml->children('http://www.w3.org/2005/Atom');
+        $entries = [];
+        foreach ($atom->entry as $entry) {
+            $meta = $entry->children('http://schemas.microsoft.com/ado/2007/08/dataservices/metadata');
+            if (!isset($meta->properties)) {
+                continue;
+            }
+            $props = $meta->properties->children('http://schemas.microsoft.com/ado/2007/08/dataservices');
+            $row = [];
+            foreach ($props as $name => $value) {
+                $row[$name] = trim((string) $value);
+            }
+            $entries[] = $row;
+        }
+        return $entries;
+    }
+
+    // -- Curated popular apps (household names, official links) ----------------
+    private static function popular(): array
+    {
+        $created = $skipped = 0;
+        foreach (self::POPULAR as $a) {
+            $dto = [
+                'external_ref'          => 'popular:' . \slugify($a[0]),
+                'name'                  => $a[0],
+                'developer_name'        => $a[1],
+                'official_website'      => $a[2],
+                'official_download_url' => $a[3] ?: $a[2],
+                'short_description'     => $a[4],
+                'long_description'      => $a[4],
+                'version'               => null,
+                'license_type'          => null,
+                'price_type'            => $a[6] ?? null,
+                'is_open_source'        => ($a[6] ?? '') === 'open_source' ? 1 : 0,
+                'os_slug'               => $a[7] ?? 'windows',
+                'os_label'              => $a[8] ?? 'Windows',
+                'signals'               => $a[0] . ' ' . $a[5] . ' ' . $a[4],
+                'category_slug'         => $a[5],
+            ];
+            try {
+                self::store($dto) ? $created++ : $skipped++;
+            } catch (\Throwable $e) {
+                $skipped++;
+            }
+        }
+        return ['created' => $created, 'skipped' => $skipped, 'scanned' => count(self::POPULAR), 'message' => 'popular apps imported'];
+    }
+
+    /** [name, developer, website, download_url, description, category_slug, price_type, os_slug, os_label] */
+    private const POPULAR = [
+        ['Google Chrome', 'Google', 'https://www.google.com/chrome/', 'https://www.google.com/chrome/', 'Fast, secure web browser from Google.', 'browsers', 'free', 'windows', 'Windows, macOS, Linux'],
+        ['Microsoft Edge', 'Microsoft', 'https://www.microsoft.com/edge', 'https://www.microsoft.com/edge', 'Chromium-based browser built into Windows.', 'browsers', 'free', 'windows', 'Windows, macOS'],
+        ['Brave Browser', 'Brave Software', 'https://brave.com/', 'https://brave.com/download/', 'Privacy-focused browser that blocks ads and trackers.', 'browsers', 'free', 'windows', 'Windows, macOS, Linux'],
+        ['Opera', 'Opera', 'https://www.opera.com/', 'https://www.opera.com/download', 'Feature-rich browser with built-in VPN and ad blocker.', 'browsers', 'free', 'windows', 'Windows, macOS, Linux'],
+        ['Zoom', 'Zoom Video Communications', 'https://zoom.us/', 'https://zoom.us/download', 'Video conferencing and online meetings.', 'communication', 'freemium', 'windows', 'Windows, macOS'],
+        ['Skype', 'Microsoft', 'https://www.skype.com/', 'https://www.skype.com/get-skype/', 'Voice, video calls and messaging.', 'communication', 'free', 'windows', 'Windows, macOS, Linux'],
+        ['Microsoft Teams', 'Microsoft', 'https://www.microsoft.com/microsoft-teams', 'https://www.microsoft.com/microsoft-teams/download-app', 'Team chat, meetings and collaboration.', 'communication', 'freemium', 'windows', 'Windows, macOS'],
+        ['Slack', 'Slack Technologies', 'https://slack.com/', 'https://slack.com/downloads', 'Team messaging and collaboration hub.', 'communication', 'freemium', 'windows', 'Windows, macOS, Linux'],
+        ['Discord', 'Discord Inc.', 'https://discord.com/', 'https://discord.com/download', 'Voice, video and text chat for communities.', 'communication', 'free', 'windows', 'Windows, macOS, Linux'],
+        ['Telegram Desktop', 'Telegram', 'https://telegram.org/', 'https://desktop.telegram.org/', 'Fast, secure cloud-based messaging.', 'communication', 'free', 'windows', 'Windows, macOS, Linux'],
+        ['WhatsApp Desktop', 'Meta', 'https://www.whatsapp.com/', 'https://www.whatsapp.com/download', 'Desktop client for WhatsApp messaging.', 'communication', 'free', 'windows', 'Windows, macOS'],
+        ['Signal', 'Signal Foundation', 'https://signal.org/', 'https://signal.org/download/', 'Private messenger with end-to-end encryption.', 'communication', 'free', 'windows', 'Windows, macOS, Linux'],
+        ['Spotify', 'Spotify', 'https://www.spotify.com/', 'https://www.spotify.com/download', 'Music streaming for millions of songs.', 'media-players', 'freemium', 'windows', 'Windows, macOS, Linux'],
+        ['Adobe Acrobat Reader', 'Adobe', 'https://get.adobe.com/reader/', 'https://get.adobe.com/reader/', 'View, print and annotate PDF documents.', 'pdf-tools', 'free', 'windows', 'Windows, macOS'],
+        ['WinRAR', 'RARLAB', 'https://www.win-rar.com/', 'https://www.win-rar.com/download.html', 'Powerful archiver for RAR and ZIP files.', 'file-tools', 'trial', 'windows', 'Windows'],
+        ['Zoom Player', 'Inmatrix', 'https://www.inmatrix.com/', 'https://www.inmatrix.com/zplayer/', 'Advanced media player for Windows.', 'media-players', 'freemium', 'windows', 'Windows'],
+        ['VLC media player', 'VideoLAN', 'https://www.videolan.org/vlc/', 'https://www.videolan.org/vlc/', 'Free, open-source cross-platform media player.', 'media-players', 'open_source', 'windows', 'Windows, macOS, Linux'],
+        ['Notepad++', 'Notepad++ Team', 'https://notepad-plus-plus.org/', 'https://notepad-plus-plus.org/downloads/', 'Free source code and text editor.', 'developer-tools', 'open_source', 'windows', 'Windows'],
+        ['Visual Studio Code', 'Microsoft', 'https://code.visualstudio.com/', 'https://code.visualstudio.com/download', 'Lightweight, powerful source code editor.', 'developer-tools', 'free', 'windows', 'Windows, macOS, Linux'],
+        ['Sublime Text', 'Sublime HQ', 'https://www.sublimetext.com/', 'https://www.sublimetext.com/download', 'Sophisticated text editor for code and prose.', 'developer-tools', 'trial', 'windows', 'Windows, macOS, Linux'],
+        ['Git', 'Software Freedom Conservancy', 'https://git-scm.com/', 'https://git-scm.com/downloads', 'Distributed version control system.', 'developer-tools', 'open_source', 'windows', 'Windows, macOS, Linux'],
+        ['Python', 'Python Software Foundation', 'https://www.python.org/', 'https://www.python.org/downloads/', 'Popular programming language and runtime.', 'developer-tools', 'open_source', 'windows', 'Windows, macOS, Linux'],
+        ['Node.js', 'OpenJS Foundation', 'https://nodejs.org/', 'https://nodejs.org/en/download', 'JavaScript runtime built on Chrome V8.', 'developer-tools', 'open_source', 'windows', 'Windows, macOS, Linux'],
+        ['Steam', 'Valve', 'https://store.steampowered.com/', 'https://store.steampowered.com/about/', 'Digital game store and launcher.', 'utilities', 'free', 'windows', 'Windows, macOS, Linux'],
+        ['Epic Games Launcher', 'Epic Games', 'https://www.epicgames.com/', 'https://www.epicgames.com/store/download', 'Store and launcher for Epic games.', 'utilities', 'free', 'windows', 'Windows, macOS'],
+        ['OBS Studio', 'OBS Project', 'https://obsproject.com/', 'https://obsproject.com/download', 'Free software for recording and live streaming.', 'screen-recording', 'open_source', 'windows', 'Windows, macOS, Linux'],
+        ['GIMP', 'The GIMP Team', 'https://www.gimp.org/', 'https://www.gimp.org/downloads/', 'Free and open-source image editor.', 'photo-editing', 'open_source', 'windows', 'Windows, macOS, Linux'],
+        ['Blender', 'Blender Foundation', 'https://www.blender.org/', 'https://www.blender.org/download/', 'Free 3D creation suite.', 'photo-editing', 'open_source', 'windows', 'Windows, macOS, Linux'],
+        ['Audacity', 'Audacity Team', 'https://www.audacityteam.org/', 'https://www.audacityteam.org/download/', 'Free, open-source audio editor and recorder.', 'media-players', 'open_source', 'windows', 'Windows, macOS, Linux'],
+        ['LibreOffice', 'The Document Foundation', 'https://www.libreoffice.org/', 'https://www.libreoffice.org/download/download/', 'Free, powerful office suite.', 'office', 'open_source', 'windows', 'Windows, macOS, Linux'],
+        ['7-Zip', 'Igor Pavlov', 'https://www.7-zip.org/', 'https://www.7-zip.org/download.html', 'Free file archiver with high compression.', 'file-tools', 'open_source', 'windows', 'Windows'],
+        ['Mozilla Thunderbird', 'MZLA Technologies', 'https://www.thunderbird.net/', 'https://www.thunderbird.net/download/', 'Free email client from Mozilla.', 'communication', 'open_source', 'windows', 'Windows, macOS, Linux'],
+        ['AnyDesk', 'AnyDesk Software', 'https://anydesk.com/', 'https://anydesk.com/download', 'Fast remote desktop access.', 'remote-tools', 'freemium', 'windows', 'Windows, macOS, Linux'],
+        ['TeamViewer', 'TeamViewer', 'https://www.teamviewer.com/', 'https://www.teamviewer.com/download/', 'Remote access and support software.', 'remote-tools', 'freemium', 'windows', 'Windows, macOS, Linux'],
+        ['CCleaner', 'Piriform', 'https://www.ccleaner.com/', 'https://www.ccleaner.com/ccleaner/download', 'System cleaning and optimization utility.', 'utilities', 'freemium', 'windows', 'Windows, macOS'],
+        ['Malwarebytes', 'Malwarebytes', 'https://www.malwarebytes.com/', 'https://www.malwarebytes.com/mwb-download', 'Anti-malware and threat protection.', 'security', 'freemium', 'windows', 'Windows, macOS'],
+        ['Avast Free Antivirus', 'Avast', 'https://www.avast.com/', 'https://www.avast.com/free-antivirus-download', 'Free antivirus protection.', 'security', 'freemium', 'windows', 'Windows, macOS'],
+        ['NordVPN', 'Nord Security', 'https://nordvpn.com/', 'https://nordvpn.com/download/', 'Secure and fast VPN service.', 'security', 'paid', 'windows', 'Windows, macOS, Linux'],
+        ['qBittorrent', 'qBittorrent', 'https://www.qbittorrent.org/', 'https://www.qbittorrent.org/download', 'Free, open-source BitTorrent client.', 'utilities', 'open_source', 'windows', 'Windows, macOS, Linux'],
+        ['HandBrake', 'HandBrake Team', 'https://handbrake.fr/', 'https://handbrake.fr/downloads.php', 'Open-source video transcoder.', 'video-editing', 'open_source', 'windows', 'Windows, macOS, Linux'],
+        ['Shotcut', 'Meltytech', 'https://www.shotcut.org/', 'https://www.shotcut.org/download/', 'Free, open-source video editor.', 'video-editing', 'open_source', 'windows', 'Windows, macOS, Linux'],
+        ['Krita', 'Krita Foundation', 'https://krita.org/', 'https://krita.org/en/download/', 'Free digital painting software.', 'photo-editing', 'open_source', 'windows', 'Windows, macOS, Linux'],
+        ['Inkscape', 'Inkscape Project', 'https://inkscape.org/', 'https://inkscape.org/release/', 'Free, open-source vector graphics editor.', 'photo-editing', 'open_source', 'windows', 'Windows, macOS, Linux'],
+        ['Foxit PDF Reader', 'Foxit', 'https://www.foxit.com/', 'https://www.foxit.com/pdf-reader/', 'Fast, lightweight PDF reader.', 'pdf-tools', 'freemium', 'windows', 'Windows, macOS'],
+        ['Google Drive', 'Google', 'https://www.google.com/drive/', 'https://www.google.com/drive/download/', 'Cloud storage and file sync.', 'backup', 'freemium', 'windows', 'Windows, macOS'],
+        ['Dropbox', 'Dropbox', 'https://www.dropbox.com/', 'https://www.dropbox.com/install', 'Cloud storage and file synchronization.', 'backup', 'freemium', 'windows', 'Windows, macOS, Linux'],
+        ['PotPlayer', 'Kakao', 'https://potplayer.daum.net/', 'https://potplayer.daum.net/', 'Feature-rich multimedia player.', 'media-players', 'free', 'windows', 'Windows'],
+        ['IrfanView', 'Irfan Skiljan', 'https://www.irfanview.com/', 'https://www.irfanview.com/main_download_engl.htm', 'Fast, compact image viewer.', 'photo-editing', 'free', 'windows', 'Windows'],
+        ['Paint.NET', 'dotPDN', 'https://www.getpaint.net/', 'https://www.getpaint.net/download.html', 'Free image and photo editing for Windows.', 'photo-editing', 'free', 'windows', 'Windows'],
+        ['Rufus', 'Pete Batard', 'https://rufus.ie/', 'https://rufus.ie/', 'Create bootable USB drives easily.', 'utilities', 'open_source', 'windows', 'Windows'],
+        ['Wise Care 365', 'WiseCleaner', 'https://www.wisecleaner.com/', 'https://www.wisecleaner.com/wise-care-365.html', 'PC cleaning and optimization suite.', 'utilities', 'freemium', 'windows', 'Windows'],
+    ];
 
     // -- macOS: Homebrew casks -------------------------------------------------
     private static function homebrew(int $maxNew): array
@@ -189,9 +365,13 @@ final class CatalogImport
             return false;
         }
 
-        $categoryId = Classifier::detectCategory($d['name'], (string) ($d['signals'] ?? ''));
+        $categoryId = null;
+        if (!empty($d['category_slug'])) {
+            $cid = Database::scalar('SELECT id FROM categories WHERE slug = :s', ['s' => $d['category_slug']]);
+            $categoryId = $cid ? (int) $cid : null;
+        }
         if ($categoryId === null) {
-            $categoryId = self::defaultCategory();
+            $categoryId = Classifier::detectCategory($d['name'], (string) ($d['signals'] ?? '')) ?? self::defaultCategory();
         }
 
         $record = [

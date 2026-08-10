@@ -51,7 +51,10 @@ final class BulkImportController extends AdminController
             $this->redirect(base_url('/admin/bulk-import'));
         }
         $r = CatalogImport::run($source, 150);
-        $label = ['homebrew' => 'macOS (Homebrew)', 'flathub' => 'Linux (Flathub)', 'fdroid' => 'Android (F-Droid)'][$source] ?? $source;
+        $label = [
+            'popular' => 'Popular apps', 'chocolatey' => 'Windows (Chocolatey)',
+            'homebrew' => 'macOS (Homebrew)', 'flathub' => 'Linux (Flathub)', 'fdroid' => 'Android (F-Droid)',
+        ][$source] ?? $source;
         Session::flash('ok', "$label: added {$r['created']} new, {$r['skipped']} skipped. " . ($r['message'] ?? ''));
         $this->redirect(base_url('/admin/bulk-import'));
     }
