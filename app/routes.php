@@ -67,6 +67,9 @@ $router->post('/admin/logout', [AuthController::class, 'logout']);
 $router->get('/admin', [DashboardController::class, 'index']);
 $router->get('/admin/notifications', [DashboardController::class, 'notifications']);
 
+$router->get('/admin/bulk-import', [\App\Controllers\Admin\BulkImportController::class, 'index']);
+$router->post('/admin/bulk-import/start', [\App\Controllers\Admin\BulkImportController::class, 'start']);
+
 $router->get('/admin/software', [SoftwareAdminController::class, 'index']);
 $router->get('/admin/software/new', [SoftwareAdminController::class, 'create']);
 $router->post('/admin/software/new', [SoftwareAdminController::class, 'store']);
