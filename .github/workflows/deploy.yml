@@ -38,8 +38,10 @@ jobs:
           server: 82.180.164.152
           username: u246829578.apnesoft.com
           password: ${{ secrets.FTP_PASSWORD }}
-          protocol: ftp
+          # Hostinger enforces FTP-over-TLS (FTPS) on port 21; plain ftp times out.
+          protocol: ftps
           port: 21
+          timeout: 60000
           # Hostinger FTP logs in at the home dir; the web root is public_html.
           server-dir: public_html/
           # Never touch server-side secrets / runtime data.
