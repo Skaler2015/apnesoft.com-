@@ -13,10 +13,11 @@ name: Deploy to Hostinger
 # .env and the storage/ runtime folders on the server are preserved (excluded),
 # so your database settings and logs are never overwritten or deleted.
 
+# NOTE: Hostinger blocks inbound FTP/FTPS from external IPs (GitHub runners),
+# so this FTP job is disabled (manual-only). Deployment now uses Hostinger's
+# own Git feature, which pulls from GitHub server-side (past the firewall).
+# Kept here only as a manual fallback if FTP is ever whitelisted.
 on:
-  push:
-    branches:
-      - claude/software-discovery-platform-9f8r10
   workflow_dispatch: {}
 
 concurrency:
