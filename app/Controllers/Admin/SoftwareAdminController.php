@@ -250,7 +250,15 @@ final class SoftwareAdminController extends AdminController
         }
 
         $this->audit('software.' . $action, 'software', $id);
-        \App\Core\Session::flash('ok', 'Action "' . $action . '" applied.');
-        $this->redirect($this->request->header('Referer') ?: base_url('/admin/software'));
+
+        if ($action === 'delete') {
+            Session::flash('ok', 'Software deleted.');
+            $this->redirect(base_url('/admin/software'));
+        }
+
+        Session::flash('ok', 'Action "' . $action . '" applied.');
+        // Avoid redirecting back to a now-stale edit page after a status change.
+        $referer = (string) $this->request->header('Referer');
+        $this->redirect($referer !== '' ? $referer : base_url('/admin/software'));
     }
 }

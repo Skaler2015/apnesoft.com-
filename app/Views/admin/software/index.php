@@ -23,11 +23,13 @@
             <td><span class="status status-<?= e($s['status']) ?>"><?= e($s['status']) ?></span></td>
             <td class="muted small"><?= e(time_ago($s['updated_at'])) ?></td>
             <td class="row-actions">
+                <a class="btn btn-xs btn-ghost" href="<?= e(base_url('/admin/software/' . $s['id'] . '/edit')) ?>">Edit</a>
                 <?php if ($s['status'] !== 'published'): ?>
                     <?= View::partial('admin/partials/action', ['id' => $s['id'], 'action' => 'approve', 'label' => 'Approve']) ?>
+                <?php else: ?>
+                    <?= View::partial('admin/partials/action', ['id' => $s['id'], 'action' => 'disable', 'label' => 'Disable']) ?>
                 <?php endif; ?>
-                <?= View::partial('admin/partials/action', ['id' => $s['id'], 'action' => 'recheck', 'label' => 'Recheck']) ?>
-                <?= View::partial('admin/partials/action', ['id' => $s['id'], 'action' => 'reject', 'label' => 'Reject']) ?>
+                <?= View::partial('admin/partials/action', ['id' => $s['id'], 'action' => 'delete', 'label' => 'Delete']) ?>
             </td>
         </tr>
     <?php endforeach; ?>

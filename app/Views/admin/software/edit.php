@@ -2,6 +2,17 @@
 <div class="admin-edit-head">
     <a class="btn btn-sm btn-ghost" href="<?= e(base_url('/admin/software')) ?>">← Back</a>
     <a class="btn btn-sm btn-ghost" href="<?= e(base_url('/software/' . $s['slug'])) ?>" target="_blank">View on site ↗</a>
+    <span style="flex:1"></span>
+    <?php if ($s['status'] === 'published'): ?>
+        <form method="post" action="<?= e(base_url('/admin/software/' . $s['id'] . '/action')) ?>" class="inline">
+            <?= Csrf::field() ?><input type="hidden" name="action" value="disable">
+            <button class="btn btn-sm btn-ghost">Disable</button>
+        </form>
+    <?php endif; ?>
+    <form method="post" action="<?= e(base_url('/admin/software/' . $s['id'] . '/action')) ?>" class="inline" onsubmit="return confirm('Delete this software permanently? This cannot be undone.')">
+        <?= Csrf::field() ?><input type="hidden" name="action" value="delete">
+        <button class="btn btn-sm btn-ghost" style="color:var(--red)">Delete</button>
+    </form>
 </div>
 <form method="post" action="<?= e(base_url('/admin/software/' . $s['id'] . '/edit')) ?>" class="admin-form">
     <?= Csrf::field() ?>
