@@ -69,6 +69,7 @@ $router->get('/admin/notifications', [DashboardController::class, 'notifications
 
 $router->get('/admin/bulk-import', [\App\Controllers\Admin\BulkImportController::class, 'index']);
 $router->post('/admin/bulk-import/start', [\App\Controllers\Admin\BulkImportController::class, 'start']);
+$router->post('/admin/bulk-import/toggle', [\App\Controllers\Admin\BulkImportController::class, 'toggle']);
 
 $router->get('/admin/software', [SoftwareAdminController::class, 'index']);
 $router->get('/admin/software/new', [SoftwareAdminController::class, 'create']);

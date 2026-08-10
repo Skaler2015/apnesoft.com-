@@ -3,6 +3,7 @@ declare(strict_types=1);
 require __DIR__ . '/_cli.php';
 
 use App\Core\Database;
+use App\Services\BulkImport;
 use App\Services\DiscoveryEngine;
 use App\Services\JobRunner;
 use App\Services\LinkChecker;
@@ -21,6 +22,14 @@ use App\Services\Sitemap;
 // 1. Discover + detect versions from all due sources.
 $d = JobRunner::run('discover', 'Discovery', fn() => DiscoveryEngine::runAll());
 cron_out('discover', $d);
+
+// 1b. Continuous auto-discovery: keep importing fresh real software from GitHub
+//     every hour so the catalog grows automatically (toggle: setting auto_discovery).
+$ad = JobRunner::run('auto_discovery', 'Auto-Discovery', function () {
+    $r = BulkImport::runContinuous(250, 6);
+    return ['processed' => $r['scanned'], 'created' => $r['created'], 'skipped' => $r['skipped']];
+});
+cron_out('auto_discovery', $ad);
 
 // 2. Verify a small batch of download/official links.
 $l = JobRunner::run('link_check', 'Link Checker', function () {

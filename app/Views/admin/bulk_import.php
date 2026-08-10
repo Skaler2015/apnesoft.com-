@@ -60,3 +60,21 @@ if ($autoContinue):
             <code>GITHUB_TOKEN</code> in your <code>.env</code> (raises the API limit from 10 to 30 searches/min).</p>
     <?php endif; ?>
 </div>
+
+<div class="admin-panel">
+    <h2>Automatic hourly discovery</h2>
+    <p class="muted">When on, the hourly cron keeps importing ~250 fresh real open-source
+        apps from GitHub every hour — the catalog grows by itself, hands-off.</p>
+    <p style="margin:10px 0"><strong><?= number_format((int) ($total ?? 0)) ?></strong> software currently published.</p>
+    <form method="post" action="<?= e(base_url('/admin/bulk-import/toggle')) ?>" class="inline">
+        <?= Csrf::field() ?>
+        <input type="hidden" name="enable" value="<?= !empty($autoDiscovery) ? '0' : '1' ?>">
+        <?php if (!empty($autoDiscovery)): ?>
+            <span class="status status-published">● ON</span>
+            <button class="btn btn-sm btn-ghost">Turn off</button>
+        <?php else: ?>
+            <span class="status status-disabled">● OFF</span>
+            <button class="btn btn-sm btn-primary">Turn on</button>
+        <?php endif; ?>
+    </form>
+</div>

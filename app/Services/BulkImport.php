@@ -26,26 +26,53 @@ final class BulkImport
         'stars:>1000 topic:cross-platform',
         'stars:>1000 topic:productivity',
         'stars:>1000 topic:editor',
+        'stars:>1000 topic:text-editor',
+        'stars:>1000 topic:ide',
         'stars:>1000 topic:terminal',
         'stars:>1000 topic:cli',
+        'stars:>1000 topic:command-line',
         'stars:>1000 topic:security',
         'stars:>1000 topic:privacy',
+        'stars:>1000 topic:vpn',
+        'stars:>1000 topic:password-manager',
         'stars:>1000 topic:media-player',
         'stars:>1000 topic:video',
+        'stars:>1000 topic:video-editor',
         'stars:>1000 topic:audio',
+        'stars:>1000 topic:music',
+        'stars:>1000 topic:screenshot',
+        'stars:>1000 topic:screen-recorder',
+        'stars:>1000 topic:image-editor',
+        'stars:>1000 topic:pdf',
         'stars:>1000 topic:markdown',
         'stars:>1000 topic:note-taking',
+        'stars:>1000 topic:notes',
         'stars:>1000 topic:backup',
+        'stars:>1000 topic:file-manager',
+        'stars:>1000 topic:download-manager',
+        'stars:>1000 topic:browser',
+        'stars:>1000 topic:email',
+        'stars:>1000 topic:chat',
+        'stars:>1000 topic:messaging',
+        'stars:>1000 topic:remote-desktop',
+        'stars:>1000 topic:torrent',
+        'stars:>1000 topic:emulator',
         'stars:>1500 topic:game',
+        'stars:>1000 topic:launcher',
+        'stars:>1000 topic:utility',
         'stars:>2000 language:C++',
+        'stars:>2000 language:C',
         'stars:>2000 language:C#',
         'stars:>2000 language:Rust',
         'stars:>3000 language:Go',
         'stars:>4000 language:Python',
-        'stars:>5000 language:JavaScript',
+        'stars:>6000 language:JavaScript',
+        'stars:>4000 language:TypeScript',
         'stars:>2000 language:Java',
         'stars:>1500 language:Swift',
         'stars:>1500 language:Kotlin',
+        'stars:>1500 language:Dart',
+        'stars:>1000 language:Lua',
     ];
 
     private const PER_PAGE = 100;
@@ -120,6 +147,78 @@ final class BulkImport
         $finished = $done >= $target;
         return self::result($created, $skipped, $failed, $done, $target, $finished,
             $finished ? 'Done!' : 'Imported ' . $created . ' this batch.');
+    }
+
+    /**
+     * Continuous, never-ending discovery for the hourly cron. Imports up to
+     * $maxNew genuinely new software per run using a wrapping cursor, so the
+     * catalog keeps growing automatically over time. Self-throttling and
+     * bounded so it never exceeds PHP/API limits.
+     *
+     * @return array{created:int, skipped:int, scanned:int}
+     */
+    public static function runContinuous(int $maxNew = 250, int $maxPages = 6): array
+    {
+        if (self::intSetting('auto_discovery', 1) !== 1) {
+            return ['created' => 0, 'skipped' => 0, 'scanned' => 0];
+        }
+
+        $token = (string) Config::get('integrations.github_token', '');
+        $headers = ['Accept: application/vnd.github+json', 'X-GitHub-Api-Version: 2022-11-28'];
+        if ($token !== '') {
+            $headers[] = 'Authorization: Bearer ' . $token;
+        }
+
+        $qi   = self::intSetting('disc_qi', 0);
+        $page = self::intSetting('disc_page', 1);
+        $created = $skipped = $scanned = 0;
+        $queryCount = count(self::QUERIES);
+
+        for ($p = 0; $p < $maxPages && $created < $maxNew; $p++) {
+            if ($qi >= $queryCount) {          // wrap around and rescan for fresh repos
+                $qi = 0;
+                $page = 1;
+            }
+            $items = self::fetchPage(self::QUERIES[$qi], $page, $headers);
+            if ($items === null) {
+                break;                          // rate-limited or error: stop this run
+            }
+            foreach ($items as $repo) {
+                $scanned++;
+                try {
+                    self::importRepo($repo) === 'created' ? $created++ : $skipped++;
+                } catch (\Throwable $e) {
+                    $skipped++;
+                }
+                if ($created >= $maxNew) {
+                    break;
+                }
+            }
+            if (empty($items) || $page >= self::MAX_PAGE) {
+                $qi++;
+                $page = 1;
+            } else {
+                $page++;
+            }
+        }
+
+        self::setSetting('disc_qi', (string) $qi);
+        self::setSetting('disc_page', (string) $page);
+
+        return ['created' => $created, 'skipped' => $skipped, 'scanned' => $scanned];
+    }
+
+    /** Fetch one GitHub search page; null on rate-limit/error. */
+    private static function fetchPage(string $query, int $page, array $headers): ?array
+    {
+        $url = 'https://api.github.com/search/repositories?q=' . rawurlencode($query)
+            . '&sort=stars&order=desc&per_page=' . self::PER_PAGE . '&page=' . $page;
+        $resp = Http::get($url, $headers, 25);
+        if ($resp['status'] !== 200) {
+            return null;
+        }
+        $data = json_decode($resp['body'], true);
+        return is_array($data['items'] ?? null) ? $data['items'] : [];
     }
 
     public static function reset(int $target): void
