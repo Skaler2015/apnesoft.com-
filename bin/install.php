@@ -102,11 +102,19 @@ function run_sql_file(\PDO $pdo, string $file): void
         exit("✗ Missing SQL file: $file\n");
     }
     $sql = file_get_contents($file);
-    // Split on semicolons at line ends, keeping it simple (schema uses standard DDL).
-    $statements = preg_split('/;\s*\n/', $sql);
-    foreach ($statements as $stmt) {
-        $stmt = trim($stmt);
-        if ($stmt === '' || str_starts_with($stmt, '--')) {
+    // Split on semicolons at line ends, then strip full-line comments so a
+    // statement preceded by a comment block is still executed.
+    foreach (preg_split('/;\s*\n/', $sql) as $chunk) {
+        $lines = [];
+        foreach (preg_split('/\n/', $chunk) as $line) {
+            $trimmed = trim($line);
+            if ($trimmed === '' || str_starts_with($trimmed, '--')) {
+                continue;
+            }
+            $lines[] = $line;
+        }
+        $stmt = trim(implode("\n", $lines));
+        if ($stmt === '') {
             continue;
         }
         try {

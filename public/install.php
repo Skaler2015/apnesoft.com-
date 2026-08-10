@@ -118,7 +118,14 @@ if (($_POST['_action'] ?? '') === 'install' && !$alreadyInstalled) {
 
     if (!$errors) {
         try {
-            // 2. Schema + seed.
+            // 2. Clean slate, then schema + seed. Dropping first makes the
+            //    installer safely re-runnable after a partial/failed attempt.
+            $pdo->exec('SET FOREIGN_KEY_CHECKS = 0');
+            foreach ($pdo->query('SHOW TABLES')->fetchAll(\PDO::FETCH_COLUMN) as $t) {
+                $pdo->exec('DROP TABLE IF EXISTS `' . $t . '`');
+            }
+            $pdo->exec('SET FOREIGN_KEY_CHECKS = 1');
+
             runSqlFile($pdo, $root . '/database/schema.sql');
             runSqlFile($pdo, $root . '/database/seed.sql');
 
@@ -201,9 +208,19 @@ function runSqlFile(\PDO $pdo, string $file): void
         throw new \RuntimeException('Missing SQL file: ' . basename($file));
     }
     $sql = (string) file_get_contents($file);
-    foreach (preg_split('/;\s*\n/', $sql) as $stmt) {
-        $stmt = trim($stmt);
-        if ($stmt === '' || str_starts_with($stmt, '--')) {
+    foreach (preg_split('/;\s*\n/', $sql) as $chunk) {
+        // Strip full-line SQL comments and blank lines so a statement preceded
+        // by a comment block is not mistaken for a comment-only chunk.
+        $lines = [];
+        foreach (preg_split('/\n/', $chunk) as $line) {
+            $trimmed = trim($line);
+            if ($trimmed === '' || str_starts_with($trimmed, '--')) {
+                continue;
+            }
+            $lines[] = $line;
+        }
+        $stmt = trim(implode("\n", $lines));
+        if ($stmt === '') {
             continue;
         }
         try {
