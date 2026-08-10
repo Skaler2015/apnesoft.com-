@@ -66,6 +66,9 @@ return [
         'app'     => $root . '/app',
         'views'   => $root . '/app/Views',
         'storage' => $root . '/storage',
-        'public'  => $root . '/public',
+        // On shared hosting the web root ("public_html") is separate from the app
+        // folder. Set APP_PUBLIC_DIR in .env to that absolute path; otherwise the
+        // repo's own /public directory is used.
+        'public'  => rtrim((string) $get('APP_PUBLIC_DIR', $root . '/public'), '/'),
     ],
 ];
