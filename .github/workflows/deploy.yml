@@ -1,0 +1,57 @@
+name: Deploy to Hostinger
+
+# Auto-deploys the site to apnesoft.com whenever code is pushed to the branch.
+# It FTP-syncs the whole repository into public_html; the root .htaccess routes
+# traffic into /public and keeps app internals private.
+#
+# Setup (one time):
+#   1. GitHub repo -> Settings -> Secrets and variables -> Actions -> New secret
+#        Name:  FTP_PASSWORD
+#        Value: your Hostinger FTP password
+#   2. Push (or run this workflow from the Actions tab). Done.
+#
+# .env and the storage/ runtime folders on the server are preserved (excluded),
+# so your database settings and logs are never overwritten or deleted.
+
+on:
+  push:
+    branches:
+      - claude/software-discovery-platform-9f8r10
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-hostinger
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: FTP sync to public_html
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy via FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          # These are not secret; change here if your account/host differs.
+          server: 82.180.164.152
+          username: u246829578.apnesoft.com
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ftp
+          port: 21
+          # Hostinger FTP logs in at the home dir; the web root is public_html.
+          server-dir: public_html/
+          # Never touch server-side secrets / runtime data.
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/.github/**
+            .env
+            .env.example
+            **/*.md
+            storage/logs/**
+            storage/cache/**
+            storage/locks/**
+            storage/backups/**
+            storage/uploads/**
