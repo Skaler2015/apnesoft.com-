@@ -1,0 +1,37 @@
+# SoftwareHub — root deployment for "whole repository inside public_html"
+# (e.g. Hostinger Git deploying this repo into public_html).
+# It routes web traffic into the /public front controller while keeping the
+# application internals unreachable from the web. Loop-safe via the !^/public/
+# guards so a rewritten request is never re-processed.
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # 1. Block direct web access to application internals (defense in depth;
+    #    the deny rules below also cover dotfiles and config).
+    RewriteRule ^(app|config|cron|database|storage|bin)/ - [F,L]
+
+    # 2. Serve static assets and generated sitemaps from the public/ folder.
+    RewriteCond %{REQUEST_URI} !^/public/
+    RewriteRule ^(assets|sitemaps)/(.*)$ public/$1/$2 [L]
+
+    # 3. Serve any other real file that lives under public/ (index.php,
+    #    install.php, favicon, robots handled by the app, etc.).
+    RewriteCond %{REQUEST_URI} !^/public/
+    RewriteCond %{DOCUMENT_ROOT}/public/$1 -f
+    RewriteRule ^(.+)$ public/$1 [L]
+
+    # 4. Everything else -> front controller.
+    RewriteCond %{REQUEST_URI} !^/public/
+    RewriteRule ^ public/index.php [L]
+</IfModule>
+
+# Never serve dotfiles (.env, .git, ...) or repo docs/config over the web.
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+<FilesMatch "(?i)(\.env|\.md|composer\.(json|lock))$">
+    Require all denied
+</FilesMatch>
+
+Options -Indexes
