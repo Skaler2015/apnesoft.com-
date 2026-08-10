@@ -42,6 +42,16 @@ if ((int) (Database::scalar('SELECT `value` FROM settings WHERE `key` = "auto_di
     cron_out('catalog_import', $cat);
 }
 
+// 1d. AI enhancement: enrich a few not-yet-enhanced pages each hour when the
+//     admin has enabled it and configured an API key (setting: ai_enabled).
+if (\App\Services\AiEnhancer::isEnabled()) {
+    $ai = JobRunner::run('ai_enhance', 'AI Enhancer', function () {
+        $r = \App\Services\AiEnhancer::enhanceBatch(10);
+        return ['processed' => $r['processed'], 'created' => $r['enhanced'], 'failed' => $r['failed']];
+    });
+    cron_out('ai_enhance', $ai);
+}
+
 // 2. Verify a small batch of download/official links.
 $l = JobRunner::run('link_check', 'Link Checker', function () {
     $s = LinkChecker::run(20);

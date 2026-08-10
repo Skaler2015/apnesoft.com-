@@ -9,6 +9,7 @@ $nav = [
     '/admin'            => ['Dashboard', '▚'],
     '/admin/software'   => ['Software', '▤'],
     '/admin/bulk-import' => ['Bulk Import', '⬇'],
+    '/admin/ai'         => ['AI Enhancer', '✨'],
     '/admin/review'     => ['Review Queue', '⚑'],
     '/admin/sources'    => ['Source Manager', '⇄'],
     '/admin/automation' => ['Automation', '⚙'],

@@ -46,6 +46,37 @@
         <p class="muted small">Below the review threshold, discovered software is rejected automatically.</p>
     </div>
     <div class="admin-panel">
+        <h2>✨ AI enhancement</h2>
+        <p class="muted small">Uses the Anthropic API to rewrite software descriptions and features from
+            their real metadata. Your key is stored encrypted and never exposed to the frontend.
+            Get a key at <code>console.anthropic.com</code>.</p>
+        <?php $hasKey = ($st['ai_api_key_enc'] ?? '') !== ''; ?>
+        <div class="form-grid">
+            <label class="col-2">Anthropic API key
+                <input name="ai_api_key" type="password" autocomplete="off"
+                       placeholder="<?= $hasKey ? '•••••••••• (saved — leave blank to keep)' : 'sk-ant-…' ?>">
+            </label>
+            <?php if ($hasKey): ?>
+                <label class="col-2" style="flex-direction:row;align-items:center;gap:8px;font-weight:400">
+                    <input type="checkbox" name="ai_api_key_clear" value="1" style="width:auto"> Remove the saved API key
+                </label>
+            <?php endif; ?>
+            <label>Model
+                <select name="ai_model">
+                    <?php foreach (\App\Services\AiEnhancer::MODELS as $id => $label): ?>
+                        <option value="<?= e($id) ?>" <?= ($st['ai_model'] ?? \App\Services\AiEnhancer::DEFAULT_MODEL) === $id ? 'selected' : '' ?>><?= e($label) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </label>
+            <label style="flex-direction:row;align-items:center;gap:8px;font-weight:400">
+                <input type="checkbox" name="ai_enabled" value="1" <?= ($st['ai_enabled'] ?? '0') === '1' ? 'checked' : '' ?> style="width:auto">
+                Auto-enhance new software hourly (via cron)
+            </label>
+        </div>
+        <p class="muted small">AI only rephrases real facts — it never invents versions, developers, features
+            or security claims. Manage runs from <a href="<?= e(base_url('/admin/ai')) ?>">AI Enhancer</a>.</p>
+    </div>
+    <div class="admin-panel">
         <h2>Ad slots (HTML)</h2>
         <div class="form-grid">
             <label class="col-2">Header<textarea name="ad_header" rows="2"><?= e($st['ad_header'] ?? '') ?></textarea></label>

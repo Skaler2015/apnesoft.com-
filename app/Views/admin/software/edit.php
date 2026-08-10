@@ -2,6 +2,11 @@
 <div class="admin-edit-head">
     <a class="btn btn-sm btn-ghost" href="<?= e(base_url('/admin/software')) ?>">← Back</a>
     <a class="btn btn-sm btn-ghost" href="<?= e(base_url('/software/' . $s['slug'])) ?>" target="_blank">View on site ↗</a>
+    <form method="post" action="<?= e(base_url('/admin/software/' . $s['id'] . '/enhance')) ?>" class="inline"
+          onsubmit="this.querySelector('button').disabled=true;this.querySelector('button').textContent='✨ Enhancing…';">
+        <?= Csrf::field() ?>
+        <button class="btn btn-sm btn-primary" title="Rewrite description &amp; features from real data using AI">✨ Enhance with AI</button>
+    </form>
     <span style="flex:1"></span>
     <?php if ($s['status'] === 'published'): ?>
         <form method="post" action="<?= e(base_url('/admin/software/' . $s['id'] . '/action')) ?>" class="inline">

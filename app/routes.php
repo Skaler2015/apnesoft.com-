@@ -72,11 +72,15 @@ $router->post('/admin/bulk-import/start', [\App\Controllers\Admin\BulkImportCont
 $router->post('/admin/bulk-import/toggle', [\App\Controllers\Admin\BulkImportController::class, 'toggle']);
 $router->post('/admin/bulk-import/catalog', [\App\Controllers\Admin\BulkImportController::class, 'catalog']);
 
+$router->get('/admin/ai', [\App\Controllers\Admin\AiController::class, 'index']);
+$router->post('/admin/ai/start', [\App\Controllers\Admin\AiController::class, 'start']);
+
 $router->get('/admin/software', [SoftwareAdminController::class, 'index']);
 $router->get('/admin/software/new', [SoftwareAdminController::class, 'create']);
 $router->post('/admin/software/new', [SoftwareAdminController::class, 'store']);
 $router->get('/admin/software/{id}/edit', [SoftwareAdminController::class, 'edit']);
 $router->post('/admin/software/{id}/edit', [SoftwareAdminController::class, 'update']);
+$router->post('/admin/software/{id}/enhance', [\App\Controllers\Admin\AiController::class, 'enhanceOne']);
 $router->post('/admin/software/{id}/action', [SoftwareAdminController::class, 'action']);
 
 $router->get('/admin/sources', [SourceController::class, 'index']);

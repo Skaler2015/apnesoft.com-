@@ -17,6 +17,7 @@ final class SettingsController extends AdminController
         'footer_text', 'contact_email', 'social_twitter', 'social_github',
         'threshold_auto_publish', 'threshold_conditional', 'threshold_review',
         'ad_header', 'ad_incontent', 'ad_sidebar', 'ad_footer', 'ad_software_page',
+        'ai_model', 'ai_enabled',
     ];
 
     public function index(array $args = []): never
@@ -36,6 +37,18 @@ final class SettingsController extends AdminController
             if ($this->request->input($key) !== null) {
                 Settings::set($key, (string) $this->request->input($key), 'general');
             }
+        }
+
+        // AI enable is a checkbox — absent means off.
+        Settings::set('ai_enabled', $this->request->str('ai_enabled') === '1' ? '1' : '0', 'ai');
+
+        // Anthropic API key: stored encrypted. Only overwrite when a new key is
+        // typed; the form shows a masked placeholder, never the real key.
+        $newKey = trim((string) $this->request->input('ai_api_key', ''));
+        if ($newKey !== '' && !str_starts_with($newKey, '••')) {
+            Settings::set('ai_api_key_enc', \App\Core\Crypto::encrypt($newKey), 'ai');
+        } elseif ($this->request->str('ai_api_key_clear') === '1') {
+            Settings::set('ai_api_key_enc', '', 'ai');
         }
 
         // Uploaded logo / favicon override the URL fields.

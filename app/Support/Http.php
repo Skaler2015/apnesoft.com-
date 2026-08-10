@@ -23,6 +23,62 @@ final class Http
     }
 
     /**
+     * POST a JSON body and return the raw response. Used by the AI enhancer to
+     * call the Anthropic Messages API. Longer default timeout for model latency.
+     *
+     * @return array{status:int, body:string, effective_url:string, error:?string, headers:array}
+     */
+    public static function postJson(string $url, array $payload, array $headers = [], int $timeout = 90): array
+    {
+        $json = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $headers = array_merge(['Content-Type: application/json'], $headers);
+
+        if (!function_exists('curl_init')) {
+            $ctx = stream_context_create([
+                'http' => [
+                    'method'  => 'POST',
+                    'timeout' => $timeout,
+                    'header'  => implode("\r\n", $headers) . "\r\n",
+                    'content' => $json,
+                    'ignore_errors' => true,
+                ],
+                'ssl'  => ['verify_peer' => true, 'verify_peer_name' => true],
+            ]);
+            $body = @file_get_contents($url, false, $ctx);
+            $status = 0;
+            if (isset($http_response_header[0]) && preg_match('/\s(\d{3})\s/', $http_response_header[0], $m)) {
+                $status = (int) $m[1];
+            }
+            return [
+                'status' => $status, 'body' => is_string($body) ? $body : '',
+                'effective_url' => $url, 'error' => $body === false ? 'request failed' : null, 'headers' => [],
+            ];
+        }
+
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL            => $url,
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => $json,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => $timeout,
+            CURLOPT_CONNECTTIMEOUT => 15,
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_SSL_VERIFYHOST => 2,
+            CURLOPT_HTTPHEADER     => $headers,
+        ]);
+        $body = curl_exec($ch);
+        $error = curl_errno($ch) ? curl_error($ch) : null;
+        $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+        curl_close($ch);
+
+        return [
+            'status' => $status, 'body' => is_string($body) ? $body : '',
+            'effective_url' => $url, 'error' => $error, 'headers' => [],
+        ];
+    }
+
+    /**
      * @return array{status:int, body:string, effective_url:string, error:?string, headers:array}
      */
     public static function request(string $method, string $url, array $headers = [], int $timeout = 15): array
