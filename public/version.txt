@@ -1,3 +1,0 @@
-SoftwareHub auto-deploy test
-If you can read this at apnesoft.com/version.txt, automatic deployment is working.
-Deployed commit marker: v1
