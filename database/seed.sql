@@ -63,10 +63,8 @@ ON DUPLICATE KEY UPDATE name = VALUES(name);
 -- --- Example sources (disabled by default; enable + configure in admin) -------
 INSERT INTO software_sources (name, source_type, source_url, config, status, priority, trust_score, crawl_frequency) VALUES
  ('GitHub — Popular OSS', 'github_api', 'https://github.com',
-  '{"repos":["videolan/vlc","obsproject/obs-studio","BleachBit/BleachBit","gimp/gimp"],"min_stars":100}',
-  'paused', 8, 85, 360),
- ('Winget — Common Apps', 'winget', 'https://github.com/microsoft/winget-pkgs',
-  '{"packages":["Mozilla.Firefox","VideoLAN.VLC"]}', 'paused', 6, 75, 1440)
+  '{"repos":["videolan/vlc","obsproject/obs-studio","bleachbit/bleachbit","shotcut/shotcut","audacity/audacity","qbittorrent/qBittorrent","HandBrake/HandBrake","notepad-plus-plus/notepad-plus-plus"],"min_stars":50}',
+  'paused', 8, 85, 360)
 ON DUPLICATE KEY UPDATE name = VALUES(name);
 
 -- --- Sample software (real, verifiable open-source apps) ----------------------
