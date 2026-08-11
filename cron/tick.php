@@ -32,11 +32,13 @@ $ad = JobRunner::run('auto_discovery', 'Auto-Discovery', function () {
 });
 cron_out('auto_discovery', $ad);
 
-// 1c. Multi-platform catalogs (macOS/Homebrew, Linux/Flathub, Android/F-Droid).
-//     One catalog per hour, rotating, when auto-discovery is enabled.
+// 1c. Multi-platform catalogs — every source each hour (popular apps, Windows/
+//     Chocolatey, macOS/Homebrew, Linux/Flathub, Android/F-Droid). Each is
+//     cursor-based and bounded so the whole catalogue fills up automatically
+//     and stays fresh, without exceeding time/API limits.
 if ((int) (Database::scalar('SELECT `value` FROM settings WHERE `key` = "auto_discovery"') ?? 1) !== 0) {
     $cat = JobRunner::run('catalog_import', 'Catalog Import', function () {
-        $r = CatalogImport::runRotating(150);
+        $r = CatalogImport::runAll(120);
         return ['processed' => $r['scanned'], 'created' => $r['created'], 'skipped' => $r['skipped']];
     });
     cron_out('catalog_import', $cat);

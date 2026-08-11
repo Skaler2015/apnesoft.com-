@@ -82,6 +82,14 @@ if ($autoContinue):
             </form>
         <?php endforeach; ?>
     </div>
+    <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+        <form method="post" action="<?= e(base_url('/admin/bulk-import/catalog-all')) ?>" class="inline"
+              onsubmit="this.querySelector('button').disabled=true;this.querySelector('button').textContent='Importing all…';">
+            <?= Csrf::field() ?>
+            <button class="btn btn-primary">⚡ Import from ALL sources now</button>
+        </form>
+        <span class="muted small" style="margin-left:8px">One click pulls a fresh batch from every catalog above. The hourly cron does this automatically.</span>
+    </div>
     <p class="muted small" style="margin-top:8px">Popular Play Store apps (WhatsApp, Instagram…) can be added via
         <a href="<?= e(base_url('/admin/software/new')) ?>">+ Add Software</a> with their official Play Store link —
         the Play Store itself has no public API to import from.</p>
@@ -111,8 +119,10 @@ if ($autoContinue):
 
 <div class="admin-panel">
     <h2>Automatic hourly discovery</h2>
-    <p class="muted">When on, the hourly cron keeps importing ~250 fresh real open-source
-        apps from GitHub every hour — the catalog grows by itself, hands-off.</p>
+    <p class="muted">When on, the hourly cron keeps filling the catalogue by itself, hands-off —
+        ~250 fresh open-source apps from GitHub <strong>plus a batch from every catalog</strong>
+        (popular apps, Windows, macOS, Linux, Android) every hour. Sources cycle so new
+        releases keep appearing, and duplicates are merged automatically.</p>
     <p style="margin:10px 0"><strong><?= number_format((int) ($total ?? 0)) ?></strong> software currently published.</p>
     <form method="post" action="<?= e(base_url('/admin/bulk-import/toggle')) ?>" class="inline">
         <?= Csrf::field() ?>

@@ -73,6 +73,20 @@ final class BulkImportController extends AdminController
         $this->redirect(base_url('/admin/bulk-import'));
     }
 
+    /** POST /admin/bulk-import/catalog-all — import a batch from every catalog at once. */
+    public function catalogAll(array $args = []): never
+    {
+        $this->requirePermission('software.manage');
+        Csrf::check($this->request);
+        $r = CatalogImport::runAll(200);
+        $this->audit('bulk_import.catalog_all', null, null, 'created ' . $r['created']);
+        Session::flash('ok', "All catalogs: added {$r['created']} new "
+            . '(popular ' . ($r['per']['popular'] ?? 0) . ', Windows ' . ($r['per']['chocolatey'] ?? 0)
+            . ', macOS ' . ($r['per']['homebrew'] ?? 0) . ', Linux ' . ($r['per']['flathub'] ?? 0)
+            . ', Android ' . ($r['per']['fdroid'] ?? 0) . '). Run again for more.');
+        $this->redirect(base_url('/admin/bulk-import'));
+    }
+
     /** POST /admin/bulk-import/toggle — turn hourly auto-discovery on/off. */
     public function toggle(array $args = []): never
     {

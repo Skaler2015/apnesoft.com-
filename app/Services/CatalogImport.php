@@ -51,6 +51,33 @@ final class CatalogImport
         return $r;
     }
 
+    /**
+     * Import a batch from EVERY catalog (plus the curated popular list) in one
+     * pass — used by the hourly cron so all sources keep advancing together and
+     * the whole catalogue fills up automatically. Each source is bounded by
+     * $perSource and cursor-based, so a run stays within time/API limits, and
+     * cursors wrap when a catalog is exhausted so newly-added apps get picked up.
+     *
+     * @return array{created:int, skipped:int, scanned:int, per:array<string,int>}
+     */
+    public static function runAll(int $perSource = 120): array
+    {
+        $created = $skipped = $scanned = 0;
+        $per = [];
+        foreach (['popular', 'chocolatey', 'homebrew', 'flathub', 'fdroid'] as $s) {
+            try {
+                $r = self::run($s, $perSource);
+            } catch (\Throwable $e) {
+                $r = self::zero('error');
+            }
+            $created += (int) $r['created'];
+            $skipped += (int) $r['skipped'];
+            $scanned += (int) $r['scanned'];
+            $per[$s] = (int) $r['created'];
+        }
+        return ['created' => $created, 'skipped' => $skipped, 'scanned' => $scanned, 'per' => $per];
+    }
+
     // -- Windows: Chocolatey community feed (sorted by popularity) -------------
     private static function chocolatey(int $maxNew): array
     {
@@ -105,6 +132,11 @@ final class CatalogImport
             }
             $off += count($entries);
             $pages++;
+        }
+        // Exhausted the feed (no rows scanned this run): wrap back to the start so
+        // the popular Windows apps keep refreshing. Dedupe prevents duplicates.
+        if ($scanned === 0 && $off > 0) {
+            $off = 0;
         }
         self::setSetting('choco_off', (string) $off);
         return ['created' => $created, 'skipped' => $skipped, 'scanned' => $scanned, 'message' => 'imported ' . $created];
@@ -394,8 +426,13 @@ final class CatalogImport
     {
         $off = self::intSetting($cursorKey, 0);
         $count = count($list);
+        if ($count === 0) {
+            return ['created' => 0, 'skipped' => 0, 'scanned' => 0, 'message' => 'catalog empty'];
+        }
+        // Reached the end: wrap to the start to re-scan for newly-added apps.
+        // Duplicates are prevented by external_ref + dedupe, so a rescan is cheap.
         if ($off >= $count) {
-            return ['created' => 0, 'skipped' => 0, 'scanned' => 0, 'message' => 'catalog complete'];
+            $off = 0;
         }
 
         $created = $skipped = $scanned = 0;
