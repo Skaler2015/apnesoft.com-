@@ -246,6 +246,7 @@ final class BulkImport
         }
         $ref = 'github:' . $full;
 
+        Dedupe::ensureSchema();
         if (Database::scalar('SELECT id FROM software WHERE external_ref = :r', ['r' => $ref])) {
             return 'skipped';
         }
@@ -256,6 +257,32 @@ final class BulkImport
         $osLabel = $osIds ? Classifier::osLabel($osIds) : 'Windows, macOS, Linux';
 
         $html = (string) ($repo['html_url'] ?? '');
+
+        // If this repo is the same product as an app already imported from a
+        // non-GitHub catalog (e.g. VLC, OBS), enrich that record instead of
+        // publishing a duplicate. We don't merge two distinct GitHub repos that
+        // merely share a common name.
+        $existing = Dedupe::findExisting((string) $repo['name'], false);
+        if ($existing !== null) {
+            Dedupe::enrich($existing, [
+                'developer_name'        => (string) ($repo['owner']['login'] ?? ''),
+                'developer_website'     => (string) ($repo['owner']['html_url'] ?? ''),
+                'official_website'      => $repo['homepage'] ?: $html,
+                'official_download_url' => $html !== '' ? $html . '/releases' : null,
+                'short_description'     => str_excerpt((string) ($repo['description'] ?? ''), 300),
+                'long_description'      => (string) ($repo['description'] ?? ''),
+                'license_type'          => $repo['license']['spdx_id'] ?? ($repo['license']['name'] ?? null),
+                'logo'                  => $repo['owner']['avatar_url'] ?? null,
+            ], null, $osLabel);
+            foreach ($osIds as $osId) {
+                try {
+                    Database::run('INSERT IGNORE INTO software_operating_systems (software_id, os_id) VALUES (:s, :o)',
+                        ['s' => (int) $existing['id'], 'o' => $osId]);
+                } catch (\Throwable $e) {
+                }
+            }
+            return 'skipped';
+        }
         $data = [
             'name'                  => (string) $repo['name'],
             'developer_name'        => (string) ($repo['owner']['login'] ?? ''),
@@ -275,6 +302,7 @@ final class BulkImport
             'source_type'           => 'github_api',
             'source_url'            => $html,
             'external_ref'          => $ref,
+            'dedupe_key'            => Dedupe::key((string) $repo['name']),
             'last_checked_at'       => gmdate('Y-m-d H:i:s'),
         ];
         $data['trust_score']         = TrustScore::compute($data);

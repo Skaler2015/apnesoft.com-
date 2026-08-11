@@ -88,6 +88,28 @@ if ($autoContinue):
 </div>
 
 <div class="admin-panel">
+    <h2>Remove duplicate software</h2>
+    <p class="muted">The same app can arrive from several sources (Popular, Chocolatey, Homebrew, Flathub…).
+        New imports now merge automatically, but this cleans up any duplicates already published —
+        it keeps the best entry, folds in the others' details &amp; operating systems, and deletes the rest.</p>
+    <?php $dupeGroups = (int) ($dupeGroups ?? 0); ?>
+    <p style="margin:10px 0">
+        <?php if ($dupeGroups > 0): ?>
+            <strong style="color:var(--red)"><?= number_format($dupeGroups) ?></strong> software have duplicates.
+        <?php else: ?>
+            <span class="status status-published">● No duplicates found</span>
+        <?php endif; ?>
+    </p>
+    <form method="post" action="<?= e(base_url('/admin/bulk-import/dedupe')) ?>" class="inline"
+          onsubmit="this.querySelector('button').disabled=true;this.querySelector('button').textContent='Merging…';">
+        <?= Csrf::field() ?>
+        <button class="btn btn-sm <?= $dupeGroups > 0 ? 'btn-primary' : 'btn-ghost' ?>" <?= $dupeGroups > 0 ? '' : 'disabled' ?>>
+            🧹 Remove duplicates
+        </button>
+    </form>
+</div>
+
+<div class="admin-panel">
     <h2>Automatic hourly discovery</h2>
     <p class="muted">When on, the hourly cron keeps importing ~250 fresh real open-source
         apps from GitHub every hour — the catalog grows by itself, hands-off.</p>

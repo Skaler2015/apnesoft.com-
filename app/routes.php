@@ -71,6 +71,7 @@ $router->get('/admin/bulk-import', [\App\Controllers\Admin\BulkImportController:
 $router->post('/admin/bulk-import/start', [\App\Controllers\Admin\BulkImportController::class, 'start']);
 $router->post('/admin/bulk-import/toggle', [\App\Controllers\Admin\BulkImportController::class, 'toggle']);
 $router->post('/admin/bulk-import/catalog', [\App\Controllers\Admin\BulkImportController::class, 'catalog']);
+$router->post('/admin/bulk-import/dedupe', [\App\Controllers\Admin\BulkImportController::class, 'dedupe']);
 
 $router->get('/admin/ai', [\App\Controllers\Admin\AiController::class, 'index']);
 $router->post('/admin/ai/start', [\App\Controllers\Admin\AiController::class, 'start']);

@@ -74,6 +74,8 @@ final class SoftwareAdminController extends AdminController
         $data['verification_status'] = $data['trust_score'] >= 70 ? 'verified'
             : ($data['trust_score'] >= 40 ? 'review' : 'unverified');
         $data['status']       = $this->request->str('status', 'published');
+        \App\Services\Dedupe::ensureSchema();
+        $data['dedupe_key']   = \App\Services\Dedupe::key($name);
         $data['slug']         = $this->uniqueSlug(slugify($name));
         $data['discovered_at'] = gmdate('Y-m-d H:i:s');
         $data['last_checked_at'] = gmdate('Y-m-d H:i:s');
@@ -198,6 +200,8 @@ final class SoftwareAdminController extends AdminController
         $data['min_ram_mb'] = $this->request->int('min_ram_mb') ?: null;
         $data['is_open_source'] = $this->request->str('is_open_source') === '1' ? 1 : 0;
         $data['status'] = $this->request->str('status', $software['status']);
+        \App\Services\Dedupe::ensureSchema();
+        $data['dedupe_key'] = \App\Services\Dedupe::key((string) $data['name']);
 
         Database::update('software', $data, ['id' => $id]);
         Seo::generateForSoftware($id);

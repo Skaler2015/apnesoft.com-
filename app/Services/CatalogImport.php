@@ -361,7 +361,16 @@ final class CatalogImport
         if (empty($d['name']) || empty($d['external_ref'])) {
             return false;
         }
+        Dedupe::ensureSchema();
         if (Database::scalar('SELECT id FROM software WHERE external_ref = :r', ['r' => $d['external_ref']])) {
+            return false;
+        }
+
+        // Same product from a different source? Enrich the existing record with
+        // this source's extra details + operating system instead of duplicating.
+        $existing = Dedupe::findExisting((string) $d['name'], true);
+        if ($existing !== null) {
+            Dedupe::enrich($existing, $d, $d['os_slug'] ?? null, $d['os_label'] ?? null);
             return false;
         }
 
@@ -391,6 +400,7 @@ final class CatalogImport
             'source_type'           => explode(':', $d['external_ref'])[0],
             'source_url'            => $d['official_website'] ?: null,
             'external_ref'          => $d['external_ref'],
+            'dedupe_key'            => Dedupe::key((string) $d['name']),
             'last_checked_at'       => gmdate('Y-m-d H:i:s'),
             'discovered_at'         => gmdate('Y-m-d H:i:s'),
             'last_updated'          => gmdate('Y-m-d'),

@@ -9,6 +9,7 @@ use App\Core\Session;
 use App\Core\Settings;
 use App\Services\BulkImport;
 use App\Services\CatalogImport;
+use App\Services\Dedupe;
 
 /**
  * Browser-driven bulk importer. The page imports one batch per load and
@@ -38,7 +39,20 @@ final class BulkImportController extends AdminController
             'target'        => $progress['target'],
             'autoDiscovery' => (string) Settings::get('auto_discovery', '1') !== '0',
             'total'         => (int) \App\Core\Database::scalar('SELECT COUNT(*) FROM software WHERE status = "published"'),
+            'dupeGroups'    => Dedupe::duplicateGroups(),
         ]);
+    }
+
+    /** POST /admin/bulk-import/dedupe — merge & remove already-published duplicates. */
+    public function dedupe(array $args = []): never
+    {
+        $this->requirePermission('software.manage');
+        Csrf::check($this->request);
+        $r = Dedupe::deduplicateExisting(400);
+        $this->audit('software.dedupe', null, null, 'removed ' . $r['removed']);
+        Session::flash('ok', "Removed {$r['removed']} duplicate entries. "
+            . ($r['remaining'] > 0 ? "{$r['remaining']} duplicate groups remain — click again to continue." : 'No duplicates left. 🎉'));
+        $this->redirect(base_url('/admin/bulk-import'));
     }
 
     /** POST /admin/bulk-import/catalog — import one batch from a platform catalog. */

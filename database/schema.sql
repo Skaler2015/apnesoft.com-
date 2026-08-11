@@ -121,6 +121,8 @@ CREATE TABLE IF NOT EXISTS software (
     source_type           VARCHAR(40) NULL,
     source_url            VARCHAR(700) NULL,
     external_ref          VARCHAR(300) NULL,  -- e.g. github owner/repo, winget package id
+    dedupe_key            VARCHAR(160) NOT NULL DEFAULT '', -- normalized name for cross-source de-duplication
+    ai_enhanced_at        DATETIME NULL,      -- last time AI enriched this record
     trust_score           TINYINT UNSIGNED NOT NULL DEFAULT 0,
     quality_score         TINYINT UNSIGNED NOT NULL DEFAULT 0,
     verification_status   VARCHAR(20) NOT NULL DEFAULT 'unverified', -- verified|review|unverified
@@ -145,6 +147,7 @@ CREATE TABLE IF NOT EXISTS software (
     KEY idx_software_trust (trust_score),
     KEY idx_software_source (source_id),
     KEY idx_software_extref (external_ref),
+    KEY idx_software_dedupe (dedupe_key),
     FULLTEXT KEY ft_software (name, short_description, long_description),
     CONSTRAINT fk_software_category FOREIGN KEY (category_id) REFERENCES categories (id) ON DELETE SET NULL,
     CONSTRAINT fk_software_source FOREIGN KEY (source_id) REFERENCES software_sources (id) ON DELETE SET NULL
