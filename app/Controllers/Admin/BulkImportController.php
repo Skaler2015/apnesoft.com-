@@ -66,7 +66,7 @@ final class BulkImportController extends AdminController
         }
         $r = CatalogImport::run($source, 150);
         $label = [
-            'popular' => 'Popular apps', 'chocolatey' => 'Windows (Chocolatey)',
+            'popular' => 'Popular apps', 'chocolatey' => 'Windows (Chocolatey)', 'winget' => 'Windows (winget)',
             'homebrew' => 'macOS (Homebrew)', 'flathub' => 'Linux (Flathub)', 'fdroid' => 'Android (F-Droid)',
         ][$source] ?? $source;
         Session::flash('ok', "$label: added {$r['created']} new, {$r['skipped']} skipped. " . ($r['message'] ?? ''));
@@ -81,9 +81,10 @@ final class BulkImportController extends AdminController
         $r = CatalogImport::runAll(200);
         $this->audit('bulk_import.catalog_all', null, null, 'created ' . $r['created']);
         Session::flash('ok', "All catalogs: added {$r['created']} new "
-            . '(popular ' . ($r['per']['popular'] ?? 0) . ', Windows ' . ($r['per']['chocolatey'] ?? 0)
-            . ', macOS ' . ($r['per']['homebrew'] ?? 0) . ', Linux ' . ($r['per']['flathub'] ?? 0)
-            . ', Android ' . ($r['per']['fdroid'] ?? 0) . '). Run again for more.');
+            . '(popular ' . ($r['per']['popular'] ?? 0) . ', Chocolatey ' . ($r['per']['chocolatey'] ?? 0)
+            . ', winget ' . ($r['per']['winget'] ?? 0) . ', macOS ' . ($r['per']['homebrew'] ?? 0)
+            . ', Linux ' . ($r['per']['flathub'] ?? 0) . ', Android ' . ($r['per']['fdroid'] ?? 0)
+            . '). Run again for more.');
         $this->redirect(base_url('/admin/bulk-import'));
     }
 

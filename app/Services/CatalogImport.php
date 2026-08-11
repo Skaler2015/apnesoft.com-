@@ -17,10 +17,10 @@ use App\Support\Http;
 final class CatalogImport
 {
     /** Catalogs rotated through automatically by the cron. */
-    private const ROTATING = ['chocolatey', 'homebrew', 'flathub', 'fdroid'];
+    private const ROTATING = ['chocolatey', 'winget', 'homebrew', 'flathub', 'fdroid'];
 
     /** All sources triggerable manually from the admin. */
-    private const MANUAL = ['popular', 'chocolatey', 'fdroid', 'homebrew', 'flathub'];
+    private const MANUAL = ['popular', 'chocolatey', 'winget', 'fdroid', 'homebrew', 'flathub'];
 
     public static function sources(): array
     {
@@ -33,6 +33,7 @@ final class CatalogImport
         return match ($source) {
             'popular'    => self::popular(),
             'chocolatey' => self::chocolatey($maxNew),
+            'winget'     => self::winget($maxNew),
             'homebrew'   => self::homebrew($maxNew),
             'flathub'    => self::flathub($maxNew),
             'fdroid'     => self::fdroid($maxNew),
@@ -64,7 +65,7 @@ final class CatalogImport
     {
         $created = $skipped = $scanned = 0;
         $per = [];
-        foreach (['popular', 'chocolatey', 'homebrew', 'flathub', 'fdroid'] as $s) {
+        foreach (['popular', 'chocolatey', 'winget', 'homebrew', 'flathub', 'fdroid'] as $s) {
             try {
                 $r = self::run($s, $perSource);
             } catch (\Throwable $e) {
@@ -76,6 +77,75 @@ final class CatalogImport
             $per[$s] = (int) $r['created'];
         }
         return ['created' => $created, 'skipped' => $skipped, 'scanned' => $scanned, 'per' => $per];
+    }
+
+    // -- Windows: winget (Windows Package Manager community index) -------------
+    // Pulls from the public winget.run index of the official microsoft/winget-pkgs
+    // catalog. Each package carries its official Publisher, Homepage and version.
+    // Fails gracefully (adds nothing) if the index is unreachable.
+    private static function winget(int $maxNew): array
+    {
+        $page = max(1, self::intSetting('winget_page', 1));
+        $created = $skipped = $scanned = 0;
+        $loops = 0;
+
+        // Only the well-supported take/page params are used, so an unexpected
+        // sort/order value can't 400 the request.
+        while ($created < $maxNew && $loops < 8) {
+            $url = 'https://api.winget.run/v2/packages?take=24&page=' . $page;
+            $resp = Http::get($url, ['Accept: application/json'], 25);
+            if ($resp['status'] !== 200 || $resp['body'] === '') {
+                break;
+            }
+            $data = json_decode($resp['body'], true);
+            $pkgs = is_array($data['Packages'] ?? null) ? $data['Packages'] : [];
+            if ($pkgs === []) {
+                $page = 1; // past the end — wrap to the start next run
+                break;
+            }
+            foreach ($pkgs as $p) {
+                $scanned++;
+                $id = (string) ($p['Id'] ?? '');
+                $latest = is_array($p['Latest'] ?? null) ? $p['Latest'] : [];
+                $name = (string) ($latest['Name'] ?? $id);
+                if ($id === '' || $name === '') {
+                    $skipped++;
+                    continue;
+                }
+                $home = (string) ($latest['Homepage'] ?? '');
+                $versions = is_array($p['Versions'] ?? null) ? $p['Versions'] : [];
+                $dto = [
+                    'external_ref'          => 'winget:' . strtolower($id),
+                    'name'                  => $name,
+                    'developer_name'        => (string) ($latest['Publisher'] ?? self::host($home)),
+                    'official_website'      => $home ?: 'https://github.com/microsoft/winget-pkgs',
+                    'official_download_url' => $home ?: null,
+                    'short_description'     => str_excerpt((string) ($latest['Description'] ?? ''), 300),
+                    'long_description'      => (string) ($latest['Description'] ?? ''),
+                    'version'               => $versions ? (string) end($versions) : null,
+                    'license_type'          => $latest['License'] ?? null,
+                    'price_type'            => null,
+                    'is_open_source'        => 0,
+                    'os_slug'               => 'windows',
+                    'os_label'              => 'Windows',
+                    'logo'                  => $p['Logo'] ?? ($p['Banner'] ?? null),
+                    'signals'               => ($latest['Description'] ?? '') . ' ' . implode(' ', (array) ($latest['Tags'] ?? [])),
+                ];
+                try {
+                    self::store($dto) ? $created++ : $skipped++;
+                } catch (\Throwable $e) {
+                    $skipped++;
+                }
+                if ($created >= $maxNew) {
+                    break;
+                }
+            }
+            $page++;
+            $loops++;
+        }
+
+        self::setSetting('winget_page', (string) max(1, $page));
+        return ['created' => $created, 'skipped' => $skipped, 'scanned' => $scanned, 'message' => 'imported ' . $created];
     }
 
     // -- Windows: Chocolatey community feed (sorted by popularity) -------------

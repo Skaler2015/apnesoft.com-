@@ -70,6 +70,7 @@ if ($autoContinue):
         $catButtons = [
             'popular'    => '⭐ Popular apps',
             'chocolatey' => '🪟 Windows (Chocolatey)',
+            'winget'     => '📦 Windows (winget)',
             'fdroid'     => '🤖 Android (F-Droid)',
             'homebrew'   => '🍎 macOS (Homebrew)',
             'flathub'    => '🐧 Linux (Flathub)',
