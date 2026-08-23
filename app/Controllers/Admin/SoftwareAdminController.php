@@ -301,6 +301,22 @@ final class SoftwareAdminController extends AdminController
         $this->redirect(base_url('/admin/software/bulk'));
     }
 
+    /** GET /admin/software/import-url?url=… — read a software's official page. */
+    public function importUrl(array $args = []): never
+    {
+        $this->requirePermission('software.manage');
+        $url = trim($this->request->str('url'));
+        if ($url === '') {
+            $this->json(['ok' => false, 'message' => 'Paste the official website URL first.']);
+        }
+        $d = \App\Services\Publisher::extractFromUrl($url);
+        if ($d === null) {
+            $this->json(['ok' => false, 'message' => 'Could not read that page — check the URL.']);
+        }
+        $d['category_id'] = Classifier::detectCategory((string) ($d['name'] ?? ''), (string) ($d['long_description'] ?? ''));
+        $this->json(['ok' => true, 'data' => array_filter($d, static fn($v) => $v !== null && $v !== '')]);
+    }
+
     /** POST /admin/software/category — create a category inline; returns JSON. */
     public function addCategory(array $args = []): never
     {

@@ -25,6 +25,19 @@
             </p>
         </div>
 
+        <!-- Import from the official website (most reliable for commercial software) -->
+        <div class="col-2">
+            <label style="margin-bottom:6px">Import from official URL <span class="muted small">(best for commercial / niche software)</span></label>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <input id="f-url" placeholder="https://www.example.com/  (paste the official website)" style="flex:1;min-width:200px" autocomplete="off">
+                <button type="button" id="url-import" class="btn btn-primary">⬇ Import</button>
+            </div>
+            <p id="url-status" class="muted small" style="margin-top:6px">
+                Free catalogues don't have every commercial app. Paste the <strong>official website</strong> here and we'll read the real
+                name, logo, description &amp; download link straight from that page — no GitHub guesses.
+            </p>
+        </div>
+
         <!-- Live preview -->
         <div class="col-2">
             <label style="margin-bottom:6px">Live preview (how it looks on the site)</label>
@@ -40,6 +53,8 @@
 
         <label>Developer<input name="developer_name" id="f-dev" value="<?= old('developer_name') ?>"></label>
         <label>Version<input name="version" value="<?= old('version') ?>" placeholder="e.g. 1.2.3"></label>
+        <label>File size<input name="file_size" id="f-size" value="<?= old('file_size') ?>" placeholder="e.g. 45 MB"></label>
+        <label>Operating system (text)<input name="operating_system" value="<?= old('operating_system') ?>" placeholder="e.g. Windows 10/11 (optional)"></label>
         <label>Official website<input name="official_website" value="<?= old('official_website') ?>" placeholder="https://…"></label>
         <label>Developer website<input name="developer_website" value="<?= old('developer_website') ?>" placeholder="https://…"></label>
         <label class="col-2">Official download URL<input name="official_download_url" value="<?= old('official_download_url') ?>" placeholder="https://… (official / authorized source only)"></label>
@@ -244,6 +259,34 @@
                 updatePreview();
             })
             .catch(function () { btn.disabled = false; btn.textContent = original; statusEl.textContent = 'Lookup failed — fill the form manually.'; });
+    });
+
+    // ---- Import from official URL (most reliable for commercial software) ----
+    var urlBtn = document.getElementById('url-import');
+    var urlIn = document.getElementById('f-url');
+    var urlStatus = document.getElementById('url-status');
+    if (urlBtn && urlIn) urlBtn.addEventListener('click', function () {
+        var url = (urlIn.value || '').trim();
+        if (!/^https?:\/\//i.test(url)) { urlStatus.textContent = 'Paste the full official website URL (starting with https://).'; urlIn.focus(); return; }
+        var original = urlBtn.textContent;
+        urlBtn.disabled = true; urlBtn.textContent = '⏳ Reading…';
+        urlStatus.textContent = 'Reading the official page…';
+        fetch(<?= json_encode(base_url('/admin/software/import-url')) ?> + '?url=' + encodeURIComponent(url))
+            .then(function (r) { return r.json(); })
+            .then(function (res) {
+                urlBtn.disabled = false; urlBtn.textContent = original;
+                if (!res.ok) { urlStatus.textContent = res.message || 'Could not read that page.'; return; }
+                var d = res.data || {};
+                ['name','developer_name','developer_website','official_website','official_download_url',
+                 'version','license_type','logo','short_description','long_description'].forEach(function (k) { set(k, d[k]); });
+                if (d.category_id !== undefined && d.category_id !== null && d.category_id !== '') {
+                    var ce = document.getElementById('f-cat'); if (ce) ce.value = String(d.category_id);
+                }
+                if (!d.official_website) set('official_website', url);
+                urlStatus.innerHTML = '✓ Imported from the official page. Review the fields, then <strong>Add software</strong>. Tip: use ✨ AI fill to add features, pros/cons &amp; tags.';
+                updatePreview();
+            })
+            .catch(function () { urlBtn.disabled = false; urlBtn.textContent = original; urlStatus.textContent = 'Import failed — check the URL and try again.'; });
     });
 
     // ---- AI fill (full: official details + AI-written rich content) ----

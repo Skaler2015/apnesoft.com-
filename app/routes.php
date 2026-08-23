@@ -84,6 +84,7 @@ $router->post('/admin/ai/start', [\App\Controllers\Admin\AiController::class, 's
 $router->get('/admin/software', [SoftwareAdminController::class, 'index']);
 $router->get('/admin/software/lookup', [SoftwareAdminController::class, 'lookup']);
 $router->get('/admin/software/ai-fill', [SoftwareAdminController::class, 'aiFill']);
+$router->get('/admin/software/import-url', [SoftwareAdminController::class, 'importUrl']);
 $router->get('/admin/software/suggest', [SoftwareAdminController::class, 'suggest']);
 $router->get('/admin/software/bulk', [SoftwareAdminController::class, 'bulk']);
 $router->post('/admin/software/publish-one', [SoftwareAdminController::class, 'publishOne']);
