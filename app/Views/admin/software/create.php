@@ -51,7 +51,14 @@ $action = $action ?? base_url('/admin/software/new');
     <?= Csrf::field() ?>
     <div class="form-cards">
 
-    <section class="form-card">
+    <div class="form-tabs" id="form-tabs">
+        <button type="button" class="ftab is-active" data-tab="basics">📝 Basics</button>
+        <button type="button" class="ftab" data-tab="media">🖼️ Media</button>
+        <button type="button" class="ftab" data-tab="content">✍️ Content</button>
+        <button type="button" class="ftab" data-tab="review">✓ Review</button>
+    </div>
+
+    <section class="form-card" data-tab="basics">
         <div class="fc-h"><span class="fc-ic">📝</span><div><h3>मुख्य जानकारी</h3><p>नाम भरें — बाकी details Auto-fill / Import से अपने-आप</p></div></div>
         <div class="form-grid">
         <div class="col-2">
@@ -101,7 +108,7 @@ $action = $action ?? base_url('/admin/software/new');
         </div>
     </section>
 
-    <section class="form-card">
+    <section class="form-card" data-tab="basics">
         <div class="fc-h"><span class="fc-ic">🔗</span><div><h3>Links, दाम &amp; category</h3><p>official website/download, price, category, OS versions</p></div></div>
         <div class="form-grid">
         <?php
@@ -184,7 +191,7 @@ $action = $action ?? base_url('/admin/software/new');
         </div>
     </section>
 
-    <section class="form-card">
+    <section class="form-card" data-tab="basics">
         <div class="fc-h"><span class="fc-ic">🖥️</span><div><h3>Platform &amp; status</h3><p>कौन-से OS, कब live हो, auto-update</p></div></div>
         <div class="form-grid">
         <div class="col-2">
@@ -221,7 +228,7 @@ $action = $action ?? base_url('/admin/software/new');
         </div>
     </section>
 
-    <section class="form-card">
+    <section class="form-card" data-tab="media">
         <div class="fc-h"><span class="fc-ic">🖼️</span><div><h3>Media</h3><p>logo, screenshots और demo video</p></div></div>
         <div class="form-grid">
         <!-- Logo: URL or upload -->
@@ -240,7 +247,7 @@ $action = $action ?? base_url('/admin/software/new');
         </div>
     </section>
 
-    <section class="form-card">
+    <section class="form-card" data-tab="content">
         <div class="fc-h"><span class="fc-ic">✍️</span><div><h3>Content</h3><p>description, features, pros/cons, tags</p></div></div>
         <div class="form-grid">
         <label class="col-2">Short description<input name="short_description" id="f-short" value="<?= e($fv('short_description')) ?>" maxlength="320" placeholder="One-line summary"></label>
@@ -267,6 +274,11 @@ $action = $action ?? base_url('/admin/software/new');
 
         <label class="col-2">Minimum requirements<textarea name="minimum_requirements" rows="3"><?= e($fv('minimum_requirements')) ?></textarea></label>
         </div>
+    </section>
+
+    <section class="form-card" data-tab="review" id="tab-review">
+        <div class="fc-h"><span class="fc-ic">✓</span><div><h3>Review — publish से पहले जाँच</h3><p>तैयारी, SEO और क्या बाकी है — नीचे दिखेगा</p></div></div>
+        <div id="review-slot" class="muted small">तैयारी की जानकारी यहाँ आएगी…</div>
     </section>
 
     </div><!-- /form-cards -->
@@ -1016,5 +1028,36 @@ $action = $action ?? base_url('/admin/software/new');
     });
     saveTpl.style.marginTop = '0'; tpl.appendChild(sel); tpl.appendChild(saveTpl);
     form.insertBefore(tpl, form.firstChild.nextSibling);
+})();
+</script>
+
+<script>
+(function () {
+    var tabs = document.querySelectorAll('.ftab');
+    var cards = document.querySelectorAll('.form-card[data-tab]');
+    if (!tabs.length || !cards.length) return;
+
+    // Move the injected "Post तैयारी" checklist into the Review tab.
+    var tc = document.querySelector('.tool-check');
+    var slot = document.getElementById('review-slot');
+    if (tc && slot) { slot.innerHTML = ''; slot.appendChild(tc); }
+
+    function show(tab) {
+        cards.forEach(function (c) { c.classList.toggle('tab-hidden', c.getAttribute('data-tab') !== tab); });
+        tabs.forEach(function (t) { t.classList.toggle('is-active', t.getAttribute('data-tab') === tab); });
+        var top = document.querySelector('.admin-edit-head'); if (top) top.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    tabs.forEach(function (t) { t.addEventListener('click', function () { show(t.getAttribute('data-tab')); }); });
+    show('basics');
+
+    // If the user submits and a tab has an invalid field, jump to that tab.
+    var form = document.querySelector('.admin-form');
+    if (form) form.addEventListener('submit', function (e) {
+        var bad = form.querySelector(':invalid');
+        if (bad) {
+            var card = bad.closest('.form-card[data-tab]');
+            if (card && card.classList.contains('tab-hidden')) { show(card.getAttribute('data-tab')); }
+        }
+    });
 })();
 </script>

@@ -151,6 +151,14 @@ body.nav-open .admin-burger span:nth-child(3){transform:translateY(-6px) rotate(
 .fc-h p{margin:2px 0 0;font-size:.8rem;color:var(--muted)}
 .admin-form .admin-form-actions{position:sticky;bottom:14px;z-index:20;background:var(--surface);border:1px solid var(--border);
     border-radius:14px;padding:13px 18px;box-shadow:0 12px 34px rgba(0,0,0,.28);margin-top:20px}
+/* Tabbed form */
+.form-tabs{display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--border);margin-bottom:16px}
+.ftab{font-size:.92rem;font-weight:700;padding:10px 16px;border:0;background:transparent;color:var(--muted);cursor:pointer;
+    border-bottom:2px solid transparent;border-radius:9px 9px 0 0;font-family:inherit;transition:.15s}
+.ftab:hover{color:var(--text);background:var(--surface-2)}
+.ftab.is-active{color:var(--brand);border-bottom-color:var(--brand);background:color-mix(in srgb,var(--brand) 9%,transparent)}
+.tab-hidden{display:none!important}
+@media (max-width:560px){.ftab{flex:1;padding:9px 6px;font-size:.82rem;text-align:center}}
 .check{flex-direction:row!important;align-items:center;gap:8px}
 code{background:var(--surface-2);padding:.12em .4em;border-radius:5px;font-size:.85em}
 
