@@ -53,16 +53,24 @@ $hasDownload = !empty($s['official_download_url']) || !empty($s['official_websit
         <div class="info-cards">
             <?php
             $info = [
-                'Latest Version' => $s['version'] ?: 'Not specified',
-                'Developer'      => $s['developer_name'] ?: 'Not specified',
-                'License'        => $s['license_type'] ?: 'Not specified',
-                'Operating System' => $s['operating_system'] ?: 'Not specified',
-                'File Size'      => $s['file_size'] ?: 'Not specified',
-                'Architecture'   => $s['architecture'] ?: 'Not specified',
-                'Release Date'   => $s['release_date'] ?: 'Not specified',
-                'Last Checked'   => $s['last_checked_at'] ? time_ago($s['last_checked_at']) : 'Not yet',
+                'Latest Version'   => trim((string) ($s['version'] ?? '')),
+                'Developer'        => trim((string) ($s['developer_name'] ?? '')),
+                'License'          => trim((string) ($s['license_type'] ?? '')),
+                'Operating System' => trim((string) ($s['operating_system'] ?? '')),
+                'File Size'        => trim((string) ($s['file_size'] ?? '')),
+                'Architecture'     => trim((string) ($s['architecture'] ?? '')),
+                'Release Date'     => trim((string) ($s['release_date'] ?? '')),
+                'Last Checked'     => $s['last_checked_at'] ? time_ago($s['last_checked_at']) : '',
             ];
-            foreach ($info as $label => $value): ?>
+            foreach ($info as $label => $value):
+                // Hide empty ("Not specified") cards — but always keep File Size.
+                if ($value === '' && $label !== 'File Size') {
+                    continue;
+                }
+                if ($value === '') {
+                    $value = 'Not specified';
+                }
+                ?>
                 <div class="info-card"><span class="info-label"><?= e($label) ?></span><span class="info-value"><?= e($value) ?></span></div>
             <?php endforeach; ?>
         </div>
