@@ -301,6 +301,27 @@ final class SoftwareAdminController extends AdminController
         $this->redirect(base_url('/admin/software/bulk'));
     }
 
+    /** POST /admin/software/category — create a category inline; returns JSON. */
+    public function addCategory(array $args = []): never
+    {
+        $this->requirePermission('software.manage');
+        Csrf::check($this->request);
+        $name = trim($this->request->str('name'));
+        if (mb_strlen($name) < 2) {
+            $this->json(['ok' => false, 'message' => 'Enter a category name.']);
+        }
+        $slug = slugify($name);
+        $existing = Database::first('SELECT id, name FROM categories WHERE slug = :s', ['s' => $slug]);
+        if ($existing) {
+            $this->json(['ok' => true, 'id' => (int) $existing['id'], 'name' => $existing['name']]);
+        }
+        Database::run('INSERT INTO categories (name, slug, status, sort_order) VALUES (:n, :s, "active", 100)',
+            ['n' => mb_substr($name, 0, 120), 's' => $slug]);
+        $id = (int) Database::scalar('SELECT id FROM categories WHERE slug = :s', ['s' => $slug]);
+        $this->audit('category.create', 'category', $id, $name);
+        $this->json(['ok' => true, 'id' => $id, 'name' => $name]);
+    }
+
     /** POST /admin/software/trending — queue recently-trending open-source apps. */
     public function trending(array $args = []): never
     {

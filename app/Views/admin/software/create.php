@@ -50,14 +50,18 @@
                 <?php endforeach; ?>
             </select>
         </label>
-        <label>Category
-            <select name="category_id">
-                <option value="">—</option>
-                <?php foreach ($categories as $c): ?>
-                    <option value="<?= (int) $c['id'] ?>"><?= e($c['name']) ?></option>
-                <?php endforeach; ?>
-            </select>
-        </label>
+        <div>
+            <label style="margin-bottom:6px">Category</label>
+            <div style="display:flex;gap:8px">
+                <select name="category_id" id="f-cat" style="flex:1">
+                    <option value="">—</option>
+                    <?php foreach ($categories as $c): ?>
+                        <option value="<?= (int) $c['id'] ?>"><?= e($c['name']) ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <button type="button" id="cat-add-btn" class="btn btn-ghost" title="Add a new category">+ New</button>
+            </div>
+        </div>
         <label>Release date<input name="release_date" type="date" value="<?= old('release_date') ?>"></label>
 
         <div class="col-2">
@@ -127,6 +131,18 @@
     </div>
 </form>
 
+<div id="cat-modal" style="display:none;position:fixed;inset:0;background:rgba(10,12,20,.6);align-items:center;justify-content:center;z-index:1000;padding:20px">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;max-width:420px;width:100%;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,.4)">
+        <h3 style="margin:0 0 12px;font-size:1.1rem">➕ New category</h3>
+        <input id="cat-name" placeholder="Category name (e.g. Video Editors)" style="width:100%" maxlength="120">
+        <div id="cat-msg" class="muted small" style="margin-top:6px"></div>
+        <div style="display:flex;gap:10px;margin-top:16px;justify-content:flex-end">
+            <button type="button" id="cat-cancel" class="btn btn-ghost btn-sm">Cancel</button>
+            <button type="button" id="cat-save" class="btn btn-primary btn-sm">Add category</button>
+        </div>
+    </div>
+</div>
+
 <style>
 .pv-card{display:flex;gap:12px;align-items:flex-start;background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:14px;max-width:520px}
 .pv-ic{width:46px;height:46px;border-radius:11px;background:linear-gradient(135deg,var(--brand),var(--brand-2));display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:1.2rem;flex:0 0 auto;overflow:hidden}
@@ -151,6 +167,40 @@
         var el = document.querySelector('[name="' + name + '"]');
         if (el) el.value = val;
         if (name === 'long_description') { var ed = document.getElementById('rt-ed'); if (ed) ed.innerText = val; }
+    }
+
+    // ---- Add a category inline (popup) ----
+    var catBtn = document.getElementById('cat-add-btn');
+    var catModal = document.getElementById('cat-modal');
+    var catSel = document.getElementById('f-cat');
+    if (catBtn && catModal) {
+        var catName = document.getElementById('cat-name');
+        var catMsg = document.getElementById('cat-msg');
+        var catSave = document.getElementById('cat-save');
+        var ci = document.querySelector('.admin-form input[name="_csrf"]');
+        var C_NAME = ci ? ci.name : '_csrf', C_VAL = ci ? ci.value : '';
+        function closeCat() { catModal.style.display = 'none'; }
+        catBtn.addEventListener('click', function () { catModal.style.display = 'flex'; catName.value = ''; catMsg.textContent = ''; catName.focus(); });
+        document.getElementById('cat-cancel').addEventListener('click', closeCat);
+        catModal.addEventListener('click', function (e) { if (e.target === catModal) closeCat(); });
+        catName.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); catSave.click(); } });
+        catSave.addEventListener('click', function () {
+            var n = catName.value.trim();
+            if (n.length < 2) { catMsg.textContent = 'Enter a category name.'; return; }
+            catSave.disabled = true; catMsg.textContent = 'Adding…';
+            var body = new URLSearchParams(); body.append(C_NAME, C_VAL); body.append('name', n);
+            fetch(<?= json_encode(base_url('/admin/software/category')) ?>, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body })
+                .then(function (r) { return r.json(); })
+                .then(function (res) {
+                    catSave.disabled = false;
+                    if (!res.ok) { catMsg.textContent = res.message || 'Failed.'; return; }
+                    var opt = catSel.querySelector('option[value="' + res.id + '"]');
+                    if (!opt) { opt = document.createElement('option'); opt.value = res.id; opt.textContent = res.name; catSel.appendChild(opt); }
+                    catSel.value = String(res.id);
+                    closeCat();
+                })
+                .catch(function () { catSave.disabled = false; catMsg.textContent = 'Failed — try again.'; });
+        });
     }
 
     // ---- Rich text editor for the long description ----
