@@ -55,18 +55,47 @@
         <label>Version<input name="version" value="<?= old('version') ?>" placeholder="e.g. 1.2.3"></label>
         <label>File size<input name="file_size" id="f-size" value="<?= old('file_size') ?>" placeholder="e.g. 45 MB"></label>
 
+        <?php
+            $oldOsv = isset($_POST['os_versions']) && is_array($_POST['os_versions']) ? $_POST['os_versions'] : [];
+            $osGroupOrder = ['Windows', 'macOS', 'iOS / iPadOS', 'Android', 'Linux', 'Other'];
+            $osGroups = array_fill_keys($osGroupOrder, []);
+            $osGroupOf = static function (string $v): string {
+                $l = mb_strtolower($v);
+                if (str_contains($l, 'windows')) return 'Windows';
+                if (str_contains($l, 'mac')) return 'macOS';
+                if (str_contains($l, 'ipad') || str_contains($l, 'ios')) return 'iOS / iPadOS';
+                if (str_contains($l, 'android')) return 'Android';
+                if (str_contains($l, 'linux') || str_contains($l, 'ubuntu') || str_contains($l, 'debian')) return 'Linux';
+                return 'Other';
+            };
+            foreach (($osVersions ?? []) as $v) { $osGroups[$osGroupOf($v)][] = $v; }
+        ?>
         <div class="col-2">
-            <label style="margin-bottom:6px">Operating system versions <span class="muted small">(tick one or more — this shows on the software page)</span></label>
-            <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap">
-                <div id="osv-box" style="flex:1;min-width:240px;max-height:160px;overflow:auto;border:1px solid var(--border);border-radius:8px;padding:9px 12px;background:var(--surface-2);display:flex;flex-wrap:wrap;gap:8px 18px">
-                    <?php $oldOsv = isset($_POST['os_versions']) && is_array($_POST['os_versions']) ? $_POST['os_versions'] : []; ?>
-                    <?php foreach (($osVersions ?? []) as $v): ?>
-                        <label class="check" style="font-weight:400;white-space:nowrap">
-                            <input type="checkbox" name="os_versions[]" value="<?= e($v) ?>" <?= in_array($v, $oldOsv, true) ? 'checked' : '' ?>> <?= e($v) ?>
-                        </label>
-                    <?php endforeach; ?>
+            <label style="margin-bottom:6px">Operating system versions <span class="muted small">(open the list and tick one or more)</span></label>
+            <div class="osv-dd" id="osv-dd">
+                <button type="button" class="osv-toggle" id="osv-toggle" aria-expanded="false">
+                    <span id="osv-summary">Select OS versions…</span><span class="osv-caret">▾</span>
+                </button>
+                <div class="osv-panel" id="osv-panel" hidden>
+                    <div id="osv-groups">
+                        <?php foreach ($osGroupOrder as $g): if (empty($osGroups[$g])) continue; ?>
+                            <div class="osv-group" data-group="<?= e($g) ?>">
+                                <div class="osv-group-h"><?= e($g) ?></div>
+                                <div class="osv-group-items">
+                                    <?php foreach ($osGroups[$g] as $v): ?>
+                                        <label class="check osv-item">
+                                            <input type="checkbox" name="os_versions[]" value="<?= e($v) ?>" <?= in_array($v, $oldOsv, true) ? 'checked' : '' ?>> <?= e($v) ?>
+                                        </label>
+                                    <?php endforeach; ?>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                    <div class="osv-panel-foot">
+                        <button type="button" id="osv-add-btn" class="btn btn-ghost btn-sm" title="Add a new OS version to this list">+ New version</button>
+                        <button type="button" id="osv-done" class="btn btn-primary btn-sm">Done</button>
+                    </div>
                 </div>
-                <button type="button" id="osv-add-btn" class="btn btn-ghost" title="Add a new OS version to this list">+ New</button>
             </div>
         </div>
         <label>Official website<input name="official_website" value="<?= old('official_website') ?>" placeholder="https://…"></label>
@@ -195,6 +224,18 @@
 .rt-ed:focus{border-color:var(--brand)}
 .rt-ed h3{font-size:1.05rem;margin:.4em 0}
 .rt-ed ul{padding-left:1.3em;margin:.4em 0}
+/* OS versions dropdown */
+.osv-dd{position:relative;max-width:520px}
+.osv-toggle{display:flex;align-items:center;gap:8px;width:100%;text-align:left;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;color:var(--text);cursor:pointer;font-size:.92rem}
+.osv-toggle:hover{border-color:var(--brand)}
+.osv-toggle #osv-summary{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.osv-caret{color:var(--muted)}
+.osv-panel{position:absolute;z-index:50;top:calc(100% + 4px);left:0;right:0;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 16px 40px rgba(0,0,0,.35);padding:8px;max-height:340px;overflow:auto}
+.osv-group{padding:4px 4px 8px}
+.osv-group-h{font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:700;margin:6px 4px 6px}
+.osv-group-items{display:flex;flex-wrap:wrap;gap:6px 16px}
+.osv-item{font-weight:400;white-space:nowrap}
+.osv-panel-foot{display:flex;gap:8px;justify-content:space-between;align-items:center;border-top:1px solid var(--border);padding:8px 4px 2px;margin-top:4px;position:sticky;bottom:-8px;background:var(--surface)}
 </style>
 
 <script>
@@ -252,51 +293,96 @@
         });
     }
 
-    // ---- Add an OS version inline (popup) ----
-    var osvBtn = document.getElementById('osv-add-btn');
-    var osvModal = document.getElementById('osv-modal');
-    var osvBox = document.getElementById('osv-box');
-    if (osvBtn && osvModal && osvBox) {
+    // ---- OS versions: grouped dropdown + add-your-own ----
+    var osvDd = document.getElementById('osv-dd');
+    if (osvDd) {
+        var osvToggle = document.getElementById('osv-toggle');
+        var osvPanel = document.getElementById('osv-panel');
+        var osvGroups = document.getElementById('osv-groups');
+        var osvSummary = document.getElementById('osv-summary');
+        var osvModal = document.getElementById('osv-modal');
         var osvName = document.getElementById('osv-name');
         var osvMsg = document.getElementById('osv-msg');
         var osvSave = document.getElementById('osv-save');
         var oi = document.querySelector('.admin-form input[name="_csrf"]');
         var O_NAME = oi ? oi.name : '_csrf', O_VAL = oi ? oi.value : '';
-        function closeOsv() { osvModal.style.display = 'none'; }
+
+        function groupOf(v) {
+            var l = v.toLowerCase();
+            if (l.indexOf('windows') >= 0) return 'Windows';
+            if (l.indexOf('mac') >= 0) return 'macOS';
+            if (l.indexOf('ipad') >= 0 || l.indexOf('ios') >= 0) return 'iOS / iPadOS';
+            if (l.indexOf('android') >= 0) return 'Android';
+            if (l.indexOf('linux') >= 0 || l.indexOf('ubuntu') >= 0 || l.indexOf('debian') >= 0) return 'Linux';
+            return 'Other';
+        }
+        function updateSummary() {
+            var picked = [];
+            osvGroups.querySelectorAll('input[name="os_versions[]"]:checked').forEach(function (cb) { picked.push(cb.value); });
+            osvSummary.textContent = picked.length ? picked.join(', ') : 'Select OS versions…';
+            osvSummary.style.color = picked.length ? 'var(--text)' : 'var(--muted)';
+        }
+        function ensureGroup(name) {
+            var g = osvGroups.querySelector('.osv-group[data-group="' + name + '"]');
+            if (g) return g.querySelector('.osv-group-items');
+            g = document.createElement('div');
+            g.className = 'osv-group'; g.setAttribute('data-group', name);
+            g.innerHTML = '<div class="osv-group-h"></div><div class="osv-group-items"></div>';
+            g.querySelector('.osv-group-h').textContent = name;
+            osvGroups.appendChild(g);
+            return g.querySelector('.osv-group-items');
+        }
         function addOsvChip(val, checked) {
-            var exists = false;
-            osvBox.querySelectorAll('input[name="os_versions[]"]').forEach(function (cb) {
-                if (cb.value.toLowerCase() === val.toLowerCase()) { exists = true; if (checked) cb.checked = true; }
+            var dup = false;
+            osvGroups.querySelectorAll('input[name="os_versions[]"]').forEach(function (cb) {
+                if (cb.value.toLowerCase() === val.toLowerCase()) { dup = true; if (checked) cb.checked = true; }
             });
-            if (exists) return;
+            if (dup) { updateSummary(); return; }
+            var items = ensureGroup(groupOf(val));
             var lab = document.createElement('label');
-            lab.className = 'check';
-            lab.style.cssText = 'font-weight:400;white-space:nowrap';
+            lab.className = 'check osv-item';
             var cb = document.createElement('input');
             cb.type = 'checkbox'; cb.name = 'os_versions[]'; cb.value = val; cb.checked = !!checked;
+            cb.addEventListener('change', updateSummary);
             lab.appendChild(cb); lab.appendChild(document.createTextNode(' ' + val));
-            osvBox.insertBefore(lab, osvBox.firstChild);
+            items.appendChild(lab);
+            updateSummary();
         }
-        osvBtn.addEventListener('click', function () { osvModal.style.display = 'flex'; osvName.value = ''; osvMsg.textContent = 'It gets added to the list and ticked automatically.'; osvName.focus(); });
-        document.getElementById('osv-cancel').addEventListener('click', closeOsv);
-        osvModal.addEventListener('click', function (e) { if (e.target === osvModal) closeOsv(); });
-        osvName.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); osvSave.click(); } });
-        osvSave.addEventListener('click', function () {
-            var n = osvName.value.trim();
-            if (n.length < 2) { osvMsg.textContent = 'Enter an OS version.'; return; }
-            osvSave.disabled = true; osvMsg.textContent = 'Adding…';
-            var body = new URLSearchParams(); body.append(O_NAME, O_VAL); body.append('name', n);
-            fetch(<?= json_encode(base_url('/admin/software/os-version')) ?>, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body })
-                .then(function (r) { return r.json(); })
-                .then(function (res) {
-                    osvSave.disabled = false;
-                    if (!res.ok) { osvMsg.textContent = res.message || 'Failed.'; return; }
-                    addOsvChip(res.name || n, true);
-                    closeOsv();
-                    if (typeof updatePreview === 'function') updatePreview();
-                })
-                .catch(function () { osvSave.disabled = false; osvMsg.textContent = 'Failed — try again.'; });
-        });
+
+        function openPanel() { osvPanel.hidden = false; osvToggle.setAttribute('aria-expanded', 'true'); }
+        function closePanel() { osvPanel.hidden = true; osvToggle.setAttribute('aria-expanded', 'false'); }
+        osvToggle.addEventListener('click', function () { osvPanel.hidden ? openPanel() : closePanel(); });
+        document.getElementById('osv-done').addEventListener('click', closePanel);
+        document.addEventListener('click', function (e) { if (!osvDd.contains(e.target)) closePanel(); });
+        osvGroups.querySelectorAll('input[name="os_versions[]"]').forEach(function (cb) { cb.addEventListener('change', updateSummary); });
+        updateSummary();
+
+        // "+ New version" popup
+        if (osvModal && osvName && osvSave) {
+            function closeOsv() { osvModal.style.display = 'none'; }
+            document.getElementById('osv-add-btn').addEventListener('click', function () {
+                osvModal.style.display = 'flex'; osvName.value = '';
+                osvMsg.textContent = 'It gets added to the right group and ticked automatically.'; osvName.focus();
+            });
+            document.getElementById('osv-cancel').addEventListener('click', closeOsv);
+            osvModal.addEventListener('click', function (e) { if (e.target === osvModal) closeOsv(); });
+            osvName.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); osvSave.click(); } });
+            osvSave.addEventListener('click', function () {
+                var n = osvName.value.trim();
+                if (n.length < 2) { osvMsg.textContent = 'Enter an OS version.'; return; }
+                osvSave.disabled = true; osvMsg.textContent = 'Adding…';
+                var body = new URLSearchParams(); body.append(O_NAME, O_VAL); body.append('name', n);
+                fetch(<?= json_encode(base_url('/admin/software/os-version')) ?>, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body })
+                    .then(function (r) { return r.json(); })
+                    .then(function (res) {
+                        osvSave.disabled = false;
+                        if (!res.ok) { osvMsg.textContent = res.message || 'Failed.'; return; }
+                        addOsvChip(res.name || n, true);
+                        closeOsv();
+                    })
+                    .catch(function () { osvSave.disabled = false; osvMsg.textContent = 'Failed — try again.'; });
+            });
+        }
     }
 
     // ---- Auto-fill the logo from Google when a website/download URL is entered ----
