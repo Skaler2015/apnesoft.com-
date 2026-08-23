@@ -42,6 +42,10 @@ final class SettingsController extends AdminController
         // AI enable is a checkbox — absent means off.
         Settings::set('ai_enabled', $this->request->str('ai_enabled') === '1' ? '1' : '0', 'ai');
 
+        // Publishing automation.
+        Settings::set('auto_screenshot', $this->request->str('auto_screenshot') === '1' ? '1' : '0', 'bulk');
+        Settings::set('daily_publish', (string) max(0, min(100, $this->request->int('daily_publish'))), 'bulk');
+
         // Anthropic API key: stored encrypted. Only overwrite when a new key is
         // typed; the form shows a masked placeholder, never the real key.
         $newKey = trim((string) $this->request->input('ai_api_key', ''));

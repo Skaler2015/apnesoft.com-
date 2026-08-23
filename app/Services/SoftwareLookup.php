@@ -192,7 +192,7 @@ final class SoftwareLookup
                 'short_description'     => str_excerpt((string) ($repo['description'] ?? ''), 300),
                 'long_description'      => (string) ($repo['description'] ?? ''),
                 'version'               => null,
-                'license_type'          => $repo['license']['spdx_id'] ?? ($repo['license']['name'] ?? null),
+                'license_type'          => self::cleanLicense($repo['license']['spdx_id'] ?? ($repo['license']['name'] ?? null)),
                 'price_type'            => 'open_source',
                 'is_open_source'        => 1,
                 'operating_system'      => 'Windows, macOS, Linux',
@@ -205,6 +205,13 @@ final class SoftwareLookup
     }
 
     // -- helpers ---------------------------------------------------------------
+
+    /** GitHub returns "NOASSERTION" when it can't detect a licence — drop it. */
+    private static function cleanLicense(?string $lic): ?string
+    {
+        $lic = trim((string) $lic);
+        return ($lic === '' || strcasecmp($lic, 'NOASSERTION') === 0) ? null : $lic;
+    }
 
     private static function norm(string $s): string
     {

@@ -95,6 +95,55 @@ final class AiEnhancer
     }
 
     /**
+     * Ask the model for a list of REAL, well-known software matching a request
+     * (e.g. "50 popular PDF tools"). Returns plain names to feed the publisher,
+     * which then resolves each to its official source. Never invents software.
+     *
+     * @return string[] names
+     */
+    public static function softwareList(string $request, int $count = 30): array
+    {
+        $key = self::apiKey();
+        if ($key === null) {
+            return [];
+        }
+        $count = max(5, min(100, $count));
+        $system = "You are a software catalogue assistant. Given a request, return real, "
+            . "well-known software that genuinely exists and has an official download page. "
+            . "Do NOT invent names. Respond with ONLY a JSON object: {\"names\": [\"...\"]} — "
+            . "up to $count entries, each the software's common product name only (no version, no description).";
+        $user = "Request: " . $request . "\nReturn up to $count real software names as JSON.";
+
+        $resp = Http::postJson(self::ENDPOINT, [
+            'model'      => self::model(),
+            'max_tokens' => 1500,
+            'system'     => $system,
+            'messages'   => [['role' => 'user', 'content' => $user]],
+        ], ['x-api-key: ' . $key, 'anthropic-version: ' . self::API_VERSION]);
+
+        if ($resp['status'] !== 200) {
+            return [];
+        }
+        $data = json_decode($resp['body'], true);
+        $text = '';
+        foreach ($data['content'] ?? [] as $block) {
+            if (($block['type'] ?? '') === 'text') {
+                $text .= $block['text'];
+            }
+        }
+        $parsed = self::parseJson($text);
+        $names = is_array($parsed['names'] ?? null) ? $parsed['names'] : [];
+        $out = [];
+        foreach ($names as $n) {
+            $n = trim((string) $n);
+            if ($n !== '') {
+                $out[] = mb_substr($n, 0, 120);
+            }
+        }
+        return array_slice(array_values(array_unique($out)), 0, $count);
+    }
+
+    /**
      * Call the model with a fact-sheet and return the parsed content (without
      * saving) — used by the admin "AI fill" so the form can be pre-populated.
      *

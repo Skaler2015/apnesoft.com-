@@ -43,7 +43,6 @@
         <label>Official website<input name="official_website" value="<?= old('official_website') ?>" placeholder="https://…"></label>
         <label>Developer website<input name="developer_website" value="<?= old('developer_website') ?>" placeholder="https://…"></label>
         <label class="col-2">Official download URL<input name="official_download_url" value="<?= old('official_download_url') ?>" placeholder="https://… (official / authorized source only)"></label>
-        <label>License<input name="license_type" value="<?= old('license_type') ?>" placeholder="MIT, GPL, Freeware…"></label>
         <label>Price type
             <select name="price_type" id="f-price">
                 <?php foreach (['','free','open_source','freemium','paid','trial'] as $p): ?>
@@ -98,7 +97,18 @@
         </div>
 
         <label class="col-2">Short description<input name="short_description" id="f-short" value="<?= old('short_description') ?>" maxlength="320" placeholder="One-line summary"></label>
-        <label class="col-2">Long description<textarea name="long_description" rows="6"><?= old('long_description') ?></textarea></label>
+        <div class="col-2">
+            <label style="margin-bottom:6px">Long description</label>
+            <div class="rt-tb">
+                <button type="button" data-cmd="bold" title="Bold"><b>B</b></button>
+                <button type="button" data-cmd="italic" title="Italic"><i>I</i></button>
+                <button type="button" data-cmd="insertUnorderedList" title="Bullet list">• List</button>
+                <button type="button" data-cmd="formatBlock" data-val="h3" title="Heading">H</button>
+                <button type="button" data-cmd="createLink" title="Link">🔗</button>
+            </div>
+            <div id="rt-ed" class="rt-ed" contenteditable="true"><?= sanitize_rich((string) old('long_description')) ?></div>
+            <textarea name="long_description" id="rt-src" hidden><?= old('long_description') ?></textarea>
+        </div>
 
         <!-- Features / Pros / Cons -->
         <label class="col-2">⭐ Features <span class="muted small">(one per line)</span><textarea name="features" rows="4" placeholder="Fast downloads&#10;Auto captions&#10;Works offline"><?= old('features') ?></textarea></label>
@@ -121,6 +131,13 @@
 .pv-card{display:flex;gap:12px;align-items:flex-start;background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:14px;max-width:520px}
 .pv-ic{width:46px;height:46px;border-radius:11px;background:linear-gradient(135deg,var(--brand),var(--brand-2));display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:1.2rem;flex:0 0 auto;overflow:hidden}
 .pv-ic img{width:46px;height:46px;object-fit:contain}
+.rt-tb{display:flex;gap:4px;background:var(--surface-2);border:1px solid var(--border);border-bottom:0;border-radius:8px 8px 0 0;padding:6px 8px}
+.rt-tb button{background:var(--surface);border:1px solid var(--border);border-radius:6px;min-width:32px;height:28px;cursor:pointer;color:var(--text);font-size:.85rem}
+.rt-tb button:hover{border-color:var(--brand);color:var(--brand)}
+.rt-ed{background:var(--surface-2);border:1px solid var(--border);border-radius:0 0 8px 8px;padding:11px 13px;min-height:120px;color:var(--text);font-size:.92rem;line-height:1.6;outline:none}
+.rt-ed:focus{border-color:var(--brand)}
+.rt-ed h3{font-size:1.05rem;margin:.4em 0}
+.rt-ed ul{padding-left:1.3em;margin:.4em 0}
 </style>
 
 <script>
@@ -133,6 +150,26 @@
         if (val === undefined || val === null || val === '') return;
         var el = document.querySelector('[name="' + name + '"]');
         if (el) el.value = val;
+        if (name === 'long_description') { var ed = document.getElementById('rt-ed'); if (ed) ed.innerText = val; }
+    }
+
+    // ---- Rich text editor for the long description ----
+    var rtEd = document.getElementById('rt-ed');
+    var rtSrc = document.getElementById('rt-src');
+    if (rtEd && rtSrc) {
+        document.querySelectorAll('.rt-tb button').forEach(function (b) {
+            b.addEventListener('click', function () {
+                var cmd = b.getAttribute('data-cmd');
+                rtEd.focus();
+                if (cmd === 'createLink') { var u = prompt('Link URL:', 'https://'); if (u) document.execCommand('createLink', false, u); }
+                else if (cmd === 'formatBlock') { document.execCommand('formatBlock', false, b.getAttribute('data-val')); }
+                else { document.execCommand(cmd, false, null); }
+                rtSrc.value = rtEd.innerHTML;
+            });
+        });
+        rtEd.addEventListener('input', function () { rtSrc.value = rtEd.innerHTML; });
+        var frm = rtEd.closest('form');
+        if (frm) frm.addEventListener('submit', function () { rtSrc.value = rtEd.innerHTML; });
     }
     if (btn) btn.addEventListener('click', function () {
         var name = (nameInput.value || '').trim();

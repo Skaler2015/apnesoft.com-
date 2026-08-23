@@ -152,6 +152,26 @@ if (!function_exists('download_label')) {
     }
 }
 
+if (!function_exists('sanitize_rich')) {
+    /** Keep only a safe subset of HTML (for admin-entered rich descriptions). */
+    function sanitize_rich(string $s): string
+    {
+        $s = strip_tags($s, '<p><br><b><strong><i><em><u><ul><ol><li><h3><h4><a>');
+        $s = preg_replace('~\son\w+\s*=\s*("[^"]*"|\'[^\']*\'|[^\s>]+)~i', '', $s) ?? $s; // drop on* handlers
+        $s = preg_replace('~(href\s*=\s*["\']?)\s*(?:javascript|data|vbscript):~i', '$1#', $s) ?? $s;
+        return trim($s);
+    }
+}
+
+if (!function_exists('render_desc')) {
+    /** Render a long description: safe HTML if it has tags, else escaped text. */
+    function render_desc(?string $s): string
+    {
+        $s = (string) $s;
+        return str_contains($s, '<') ? sanitize_rich($s) : nl2br(e($s));
+    }
+}
+
 if (!function_exists('config')) {
     function config(string $key, mixed $default = null): mixed
     {

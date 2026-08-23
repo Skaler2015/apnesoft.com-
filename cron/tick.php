@@ -54,6 +54,32 @@ if (\App\Services\AiEnhancer::isEnabled()) {
     cron_out('ai_enhance', $ai);
 }
 
+// 1e. Drain the background publish queue (admin queued names / packs / AI lists).
+$pq = JobRunner::run('publish_queue', 'Publish Queue', function () {
+    $r = \App\Services\PublishQueue::processBatch(30);
+    return ['processed' => $r['processed'], 'created' => $r['published'], 'skipped' => $r['duplicate'], 'failed' => $r['failed']];
+});
+cron_out('publish_queue', $pq);
+
+// 1f. Daily auto-publish: once a day, queue a few still-missing popular apps.
+if ((int) gmdate('G') === 3 && (int) (Database::scalar('SELECT `value` FROM settings WHERE `key` = "daily_publish"') ?? 0) > 0) {
+    $want = (int) Database::scalar('SELECT `value` FROM settings WHERE `key` = "daily_publish"');
+    $names = [];
+    foreach (\App\Services\CatalogImport::popularAll() as $a) {
+        $key = \App\Services\Dedupe::key($a[0]);
+        if ($key !== '' && !Database::scalar('SELECT id FROM software WHERE dedupe_key = :k LIMIT 1', ['k' => $key])) {
+            $names[] = $a[0];
+        }
+        if (count($names) >= max(1, min(100, $want))) {
+            break;
+        }
+    }
+    if ($names) {
+        \App\Services\PublishQueue::add($names, null);
+        cron_out('daily_publish', ['processed' => count($names)]);
+    }
+}
+
 // 2. Verify a small batch of download/official links.
 $l = JobRunner::run('link_check', 'Link Checker', function () {
     $s = LinkChecker::run(20);

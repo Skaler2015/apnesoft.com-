@@ -77,6 +77,20 @@
             or security claims. Manage runs from <a href="<?= e(base_url('/admin/ai')) ?>">AI Enhancer</a>.</p>
     </div>
     <div class="admin-panel">
+        <h2>🚀 Publishing automation</h2>
+        <div class="form-grid">
+            <label style="flex-direction:row;align-items:center;gap:8px;font-weight:400">
+                <input type="checkbox" name="auto_screenshot" value="1" <?= ($st['auto_screenshot'] ?? '0') === '1' ? 'checked' : '' ?> style="width:auto">
+                🖼️ Capture a real website screenshot for each published software
+            </label>
+            <label>🔁 Daily auto-publish — new popular apps per day
+                <input name="daily_publish" type="number" min="0" max="100" value="<?= e($st['daily_publish'] ?? '0') ?>" placeholder="0 = off">
+            </label>
+        </div>
+        <p class="muted small">Screenshots use the free WordPress mShots service. Daily auto-publish queues that many still-missing
+            popular apps every day (needs the hourly cron). Set to 0 to turn off.</p>
+    </div>
+    <div class="admin-panel">
         <h2>Ad slots (HTML)</h2>
         <div class="form-grid">
             <label class="col-2">Header<textarea name="ad_header" rows="2"><?= e($st['ad_header'] ?? '') ?></textarea></label>

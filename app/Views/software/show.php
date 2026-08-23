@@ -69,7 +69,7 @@ $hasDownload = !empty($s['official_download_url']) || !empty($s['official_websit
 
         <?php if (!empty($s['long_description'])): ?>
         <section class="detail-section"><h2>About <?= e($s['name']) ?></h2>
-            <div class="prose"><?= nl2br(e($s['long_description'])) ?></div>
+            <div class="prose"><?= render_desc($s['long_description']) ?></div>
         </section>
         <?php endif; ?>
 
