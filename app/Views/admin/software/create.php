@@ -10,11 +10,12 @@ $fv = static function (string $k, string $d = '') use ($raw) {
 $action = $action ?? base_url('/admin/software/new');
 ?>
 <?php if ($isEdit && ($_GET['published'] ?? '') === '1'): ?>
-<div id="pubModal" style="position:fixed;inset:0;background:rgba(10,12,20,.6);display:flex;align-items:center;justify-content:center;z-index:1000;padding:20px" onclick="if(event.target===this)this.remove()">
+<?php $allUrl = base_url('/admin/software'); ?>
+<div id="pubModal" style="position:fixed;inset:0;background:rgba(10,12,20,.6);display:flex;align-items:center;justify-content:center;z-index:1000;padding:20px" onclick="if(event.target===this)location.href='<?= e($allUrl) ?>'">
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;max-width:720px;width:100%;max-height:90vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.4)">
         <div style="display:flex;align-items:center;gap:10px;padding:16px 20px;border-bottom:1px solid var(--border)">
             <strong style="font-size:1.05rem">🎉 Published — here's how it looks</strong><span style="flex:1"></span>
-            <button onclick="document.getElementById('pubModal').remove()" class="btn btn-sm btn-ghost">✕ Close</button>
+            <a href="<?= e($allUrl) ?>" class="btn btn-sm btn-ghost">✕ Close</a>
         </div>
         <iframe src="<?= e(base_url('/software/' . ($s['slug'] ?? ''))) ?>" title="Preview" loading="lazy" style="width:100%;height:60vh;border:0;background:#fff"></iframe>
         <?php $liveUrl = base_url('/software/' . ($s['slug'] ?? '')); ?>
@@ -26,6 +27,7 @@ $action = $action ?? base_url('/admin/software/new');
         </div>
     </div>
 </div>
+<script>window.addEventListener('keydown',function(e){if(e.key==='Escape'&&document.getElementById('pubModal'))location.href='<?= e($allUrl) ?>';});</script>
 <?php endif; ?>
 <div class="admin-edit-head">
     <a class="btn btn-sm btn-ghost" href="<?= e(base_url('/admin/software')) ?>">← Back</a>
