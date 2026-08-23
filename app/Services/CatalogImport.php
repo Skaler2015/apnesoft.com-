@@ -237,6 +237,12 @@ final class CatalogImport
         return $entries;
     }
 
+    /** The raw curated popular list (for admin suggestions / missing-apps). */
+    public static function popularAll(): array
+    {
+        return self::POPULAR;
+    }
+
     /**
      * Find a curated popular app by (normalised) name — used by the admin
      * auto-fill so well-known apps resolve to their OFFICIAL vendor link.

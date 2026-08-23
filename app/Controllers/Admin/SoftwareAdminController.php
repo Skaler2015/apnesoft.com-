@@ -265,6 +265,192 @@ final class SoftwareAdminController extends AdminController
         $this->redirect(base_url('/admin/software/' . $id . '/edit'));
     }
 
+    /** Create + publish one software from a lookup DTO; returns the new id. */
+    private function createFromDto(array $d, array $osIds, string $status = 'published'): int
+    {
+        $osLabel = $osIds ? Classifier::osLabel($osIds) : ($d['operating_system'] ?? null);
+        $data = [
+            'name'                  => (string) ($d['name'] ?? ''),
+            'developer_name'        => $d['developer_name'] ?? null,
+            'developer_website'     => $d['developer_website'] ?? null,
+            'official_website'      => $d['official_website'] ?? null,
+            'official_download_url' => $d['official_download_url'] ?? null,
+            'short_description'     => $d['short_description'] ?? null,
+            'long_description'      => $d['long_description'] ?? null,
+            'version'               => $d['version'] ?? null,
+            'license_type'          => $d['license_type'] ?? null,
+            'price_type'            => $d['price_type'] ?? null,
+            'is_open_source'        => !empty($d['is_open_source']) ? 1 : 0,
+            'operating_system'      => $osLabel ?: null,
+            'category_id'           => $d['category_id'] ?? null,
+            'logo'                  => $d['logo'] ?? null,
+            'source_type'           => 'manual',
+        ];
+        $data['trust_score']         = TrustScore::compute($data);
+        $data['quality_score']       = TrustScore::quality($data);
+        $data['verification_status'] = $data['trust_score'] >= 70 ? 'verified' : ($data['trust_score'] >= 40 ? 'review' : 'unverified');
+        $data['status']              = $status;
+        \App\Services\Dedupe::ensureSchema();
+        $data['dedupe_key']      = \App\Services\Dedupe::key((string) $data['name']);
+        $data['slug']            = $this->uniqueSlug(slugify((string) $data['name']));
+        $data['discovered_at']   = gmdate('Y-m-d H:i:s');
+        $data['last_checked_at'] = gmdate('Y-m-d H:i:s');
+        $data['last_updated']    = gmdate('Y-m-d H:i:s');
+
+        $id = Database::insert('software', array_filter($data, static fn($v) => $v !== null));
+        foreach ($osIds as $osId) {
+            try {
+                Database::run('INSERT IGNORE INTO software_operating_systems (software_id, os_id) VALUES (:s, :o)', ['s' => $id, 'o' => $osId]);
+            } catch (\Throwable $e) {}
+        }
+        // Use the source's og:image as a screenshot when we have one.
+        if (!empty($d['screenshot'])) {
+            try {
+                Database::run('INSERT INTO software_screenshots (software_id, url, sort_order) VALUES (:s, :u, 1)', ['s' => $id, 'u' => $d['screenshot']]);
+            } catch (\Throwable $e) {}
+        }
+        return $id;
+    }
+
+    /** POST /admin/software/publish-one — publish one item (name or URL), for bulk. */
+    public function publishOne(array $args = []): never
+    {
+        $this->requirePermission('software.manage');
+        Csrf::check($this->request);
+        $this->ensureIos();
+        $this->ensureColumns();
+
+        $name = trim($this->request->str('name'));
+        $url = trim($this->request->str('url'));
+        $label = $name !== '' ? $name : $url;
+        if ($label === '') {
+            $this->json(['ok' => false, 'status' => 'error', 'name' => '', 'message' => 'empty']);
+        }
+
+        $d = $url !== '' ? $this->extractFromUrl($url) : \App\Services\SoftwareLookup::search($name);
+        if ($d === null || empty($d['name'])) {
+            $this->json(['ok' => true, 'status' => 'notfound', 'name' => $label]);
+        }
+
+        \App\Services\Dedupe::ensureSchema();
+        $key = \App\Services\Dedupe::key((string) $d['name']);
+        if ($key !== '' && Database::scalar('SELECT id FROM software WHERE dedupe_key = :k LIMIT 1', ['k' => $key])) {
+            $this->json(['ok' => true, 'status' => 'duplicate', 'name' => $d['name']]);
+        }
+
+        $osIds = ($p = $this->panelOsId()) > 0 ? [$p] : [];
+        $id = $this->createFromDto($d, $osIds, 'published');
+        if (\App\Services\AiEnhancer::isConfigured()) {
+            try { \App\Services\AiEnhancer::enhance($id); } catch (\Throwable $e) {}
+        }
+        Seo::generateForSoftware($id);
+        $this->audit('software.bulk', 'software', $id, (string) $d['name']);
+
+        $this->json([
+            'ok' => true, 'status' => 'published', 'name' => $d['name'], 'id' => $id,
+            'slug' => (string) Database::scalar('SELECT slug FROM software WHERE id = :i', ['i' => $id]),
+        ]);
+    }
+
+    /** GET /admin/software/suggest?q=… — name autocomplete. */
+    public function suggest(array $args = []): never
+    {
+        $this->requirePermission('software.manage');
+        $q = trim($this->request->str('q'));
+        if (mb_strlen($q) < 2) {
+            $this->json(['items' => []]);
+        }
+        $qn = strtolower($q);
+        $items = [];
+        foreach (\App\Services\CatalogImport::popularAll() as $a) {
+            if (str_contains(strtolower($a[0]), $qn)) {
+                $items[$a[0]] = true;
+            }
+            if (count($items) >= 8) {
+                break;
+            }
+        }
+        if (count($items) < 8) {
+            foreach (Database::all('SELECT DISTINCT name FROM software WHERE name LIKE :q ORDER BY name LIMIT 8', ['q' => '%' . $q . '%']) as $r) {
+                $items[$r['name']] = true;
+                if (count($items) >= 10) {
+                    break;
+                }
+            }
+        }
+        $this->json(['items' => array_keys($items)]);
+    }
+
+    /** Extract basic details from a software's official web page. */
+    private function extractFromUrl(string $url): ?array
+    {
+        if (!preg_match('~^https?://~i', $url)) {
+            $url = 'https://' . $url;
+        }
+        $resp = \App\Support\Http::get($url, ['Accept: text/html'], 12);
+        if ($resp['status'] < 200 || $resp['status'] >= 400 || $resp['body'] === '') {
+            return null;
+        }
+        $html = $resp['body'];
+        $meta = static function (string $pat) use ($html): string {
+            return preg_match($pat, $html, $m) ? html_entity_decode(trim($m[1]), ENT_QUOTES | ENT_HTML5) : '';
+        };
+        $title = '';
+        if (preg_match('~<title[^>]*>(.*?)</title>~is', $html, $m)) {
+            $title = html_entity_decode(trim(strip_tags($m[1])), ENT_QUOTES | ENT_HTML5);
+        }
+        $ogTitle = $meta('~<meta[^>]+property=["\']og:title["\'][^>]+content=["\']([^"\']+)~i');
+        $desc = $meta('~<meta[^>]+name=["\']description["\'][^>]+content=["\']([^"\']+)~i');
+        if ($desc === '') {
+            $desc = $meta('~<meta[^>]+property=["\']og:description["\'][^>]+content=["\']([^"\']+)~i');
+        }
+        $img = $meta('~<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)~i');
+        $host = (string) (parse_url($resp['effective_url'] ?: $url, PHP_URL_HOST) ?: '');
+        $devHost = preg_replace('~^www\.~', '', $host) ?? $host;
+
+        $name = trim((string) (preg_split('~[|\x{2013}\x{2014}:\-]~u', $ogTitle ?: $title)[0] ?? ''));
+        if ($name === '') {
+            $name = $devHost;
+        }
+        if ($name === '') {
+            return null;
+        }
+        return [
+            'name'                  => mb_substr($name, 0, 120),
+            'developer_name'        => $devHost,
+            'official_website'      => $url,
+            'official_download_url' => $url,
+            'short_description'     => str_excerpt($desc, 300),
+            'long_description'      => $desc ?: null,
+            'logo'                  => $host ? 'https://www.google.com/s2/favicons?domain=' . $host . '&sz=128' : null,
+            'screenshot'            => $img ?: null,
+            'source'                => 'url',
+        ];
+    }
+
+    /** GET /admin/software/bulk — bulk / fast publishing page. */
+    public function bulk(array $args = []): never
+    {
+        $this->requirePermission('software.manage');
+        \App\Services\Dedupe::ensureSchema();
+        \App\Services\Dedupe::backfill();
+        $missing = [];
+        foreach (\App\Services\CatalogImport::popularAll() as $a) {
+            $key = \App\Services\Dedupe::key($a[0]);
+            if ($key !== '' && !Database::scalar('SELECT id FROM software WHERE dedupe_key = :k LIMIT 1', ['k' => $key])) {
+                $missing[] = $a[0];
+            }
+            if (count($missing) >= 24) {
+                break;
+            }
+        }
+        $this->render('admin/software/bulk', [
+            'title'      => 'Bulk publish',
+            'missing'    => $missing,
+            'panelLabel' => \App\Controllers\Admin\PlatformController::current()['label'] ?? null,
+        ]);
+    }
+
     /** GET /admin/software/new — blank add-software form. */
     public function create(array $args = []): never
     {
@@ -389,6 +575,11 @@ final class SoftwareAdminController extends AdminController
         }
         $this->audit('software.create', 'software', $id, $name);
 
+        // "Save & add another" keeps you on a fresh form for rapid entry.
+        if ($this->request->str('and_new') === '1') {
+            Session::flash('ok', '✓ Added "' . $name . '". Add the next one…');
+            $this->redirect(base_url('/admin/software/new'));
+        }
         Session::flash('ok', 'Software added.');
         $this->redirect(base_url('/admin/software/' . $id . '/edit'));
     }

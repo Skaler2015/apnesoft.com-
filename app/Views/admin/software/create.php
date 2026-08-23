@@ -13,7 +13,8 @@
         <div class="col-2">
             <label style="margin-bottom:6px">Name *</label>
             <div style="display:flex;gap:8px;flex-wrap:wrap">
-                <input name="name" id="f-name" value="<?= old('name') ?>" required autofocus style="flex:1;min-width:200px">
+                <input name="name" id="f-name" value="<?= old('name') ?>" required autofocus autocomplete="off" list="name-suggest" style="flex:1;min-width:200px">
+                <datalist id="name-suggest"></datalist>
                 <button type="button" id="ai-autofill" class="btn btn-ghost">🔎 Auto-fill</button>
                 <button type="button" id="ai-fill" class="btn btn-primary" title="Fill everything — links, long description, features, pros/cons, tags — using AI">✨ AI fill (full)</button>
             </div>
@@ -111,7 +112,8 @@
     </div>
     <div class="admin-form-actions">
         <button class="btn btn-primary" type="submit">Add software</button>
-        <span class="muted small">Trust score is calculated automatically from the source, HTTPS and official URLs. Only add official / authorized sources.</span>
+        <button class="btn btn-ghost" type="submit" name="and_new" value="1" title="Publish and open a fresh form for the next one">Add &amp; next ➜</button>
+        <span class="muted small">Trust score is calculated automatically. Only add official / authorized sources.</span>
     </div>
 </form>
 
@@ -224,6 +226,23 @@
         });
         document.getElementById('pv-dl').textContent = osLabel;
     }
+    // ---- Name autocomplete ----
+    var dl = document.getElementById('name-suggest');
+    var acTimer = null;
+    if (dl) document.getElementById('f-name').addEventListener('input', function () {
+        var q = this.value.trim();
+        if (q.length < 2) return;
+        clearTimeout(acTimer);
+        acTimer = setTimeout(function () {
+            fetch(<?= json_encode(base_url('/admin/software/suggest')) ?> + '?q=' + encodeURIComponent(q))
+                .then(function (r) { return r.json(); })
+                .then(function (res) {
+                    dl.innerHTML = '';
+                    (res.items || []).forEach(function (n) { var o = document.createElement('option'); o.value = n; dl.appendChild(o); });
+                }).catch(function () {});
+        }, 250);
+    });
+
     ['f-name','f-short','f-dev','f-logo','f-price'].forEach(function (id) {
         var el = document.getElementById(id); if (el) el.addEventListener('input', updatePreview);
     });
