@@ -1219,37 +1219,33 @@ $action = $action ?? base_url('/admin/software/new');
 </script>
 
 <style>
-.fc-foot{display:flex;justify-content:flex-end;margin-top:14px;padding-top:12px;border-top:1px dashed var(--border)}
-.fc-clear{color:var(--red)!important;border-color:color-mix(in srgb,var(--red) 35%,var(--border))!important}
-.fc-clear:hover{background:color-mix(in srgb,var(--red) 10%,transparent)!important;border-color:var(--red)!important}
+.field-clear{display:inline-block;margin-top:5px;font-size:.68rem;padding:2px 9px;border-radius:6px;
+    border:1px solid color-mix(in srgb,var(--red) 30%,var(--border));background:transparent;color:var(--red);cursor:pointer;align-self:flex-start}
+.field-clear:hover{background:color-mix(in srgb,var(--red) 10%,transparent);border-color:var(--red)}
 </style>
 <script>
 (function () {
     var form = document.querySelector('.admin-form'); if (!form) return;
-    form.querySelectorAll('.form-card[data-tab]').forEach(function (card) {
-        if (card.id === 'tab-review') return; // no fields to clear here
-        var foot = document.createElement('div'); foot.className = 'fc-foot';
+    function clearBtn(fn) {
         var b = document.createElement('button');
-        b.type = 'button'; b.className = 'mini-tool fc-clear'; b.style.marginTop = '0';
-        b.textContent = '🧹 इस section को clear करें';
-        b.addEventListener('click', function () {
-            if (!confirm('इस section के सभी fields खाली कर दें?')) return;
-            card.querySelectorAll('input, textarea, select').forEach(function (el) {
-                if (el.type === 'checkbox' || el.type === 'radio') { el.checked = false; }
-                else if (el.type === 'file') { el.value = ''; }
-                else if (el.tagName === 'SELECT') { el.selectedIndex = 0; }
-                else { el.value = ''; }
-                el.dispatchEvent(new Event('input')); el.dispatchEvent(new Event('change'));
-            });
-            // Rich editor + screenshot previews inside this section.
-            var ed = card.querySelector('#rt-ed'); if (ed) { ed.innerHTML = ''; var src = card.querySelector('#rt-src'); if (src) src.value = ''; }
-            card.querySelectorAll('.tool-prev, .tool-thumb').forEach(function (n) { n.innerHTML = ''; });
-            if (card.querySelector('input[name="screenshots[]"]')) { var su = document.getElementById('f-shoturls'); if (su) su.value = ''; }
-            if (typeof updatePreview === 'function') updatePreview();
-        });
-        foot.appendChild(b);
-        card.appendChild(foot);
+        b.type = 'button'; b.className = 'field-clear'; b.textContent = '✕ clear'; b.title = 'इस field को खाली करें';
+        b.addEventListener('click', fn); return b;
+    }
+    var skip = ['hidden', 'checkbox', 'radio', 'file', 'submit', 'button'];
+    // A clear button below every real field (skip checkboxes, files, hidden, helpers).
+    form.querySelectorAll('.form-card[data-tab]:not(#tab-review) input, .form-card[data-tab]:not(#tab-review) textarea, .form-card[data-tab]:not(#tab-review) select').forEach(function (el) {
+        if (!el.name || el.hidden || skip.indexOf(el.type) >= 0) return;
+        el.insertAdjacentElement('afterend', clearBtn(function () {
+            if (el.tagName === 'SELECT') el.selectedIndex = 0; else el.value = '';
+            el.dispatchEvent(new Event('input')); el.dispatchEvent(new Event('change')); el.focus();
+        }));
     });
+    // Rich long-description editor.
+    var ed = document.getElementById('rt-ed');
+    if (ed) ed.insertAdjacentElement('afterend', clearBtn(function () {
+        ed.innerHTML = ''; var src = document.getElementById('rt-src'); if (src) src.value = '';
+        ed.dispatchEvent(new Event('input')); ed.focus();
+    }));
 })();
 </script>
 
