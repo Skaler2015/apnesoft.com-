@@ -5,16 +5,14 @@ $unread = $_unread ?? 0;
 $ok = \App\Core\Session::flash('ok');
 $err = \App\Core\Session::flash('err');
 $path = $_SERVER['REQUEST_URI'] ?? '';
+// Minimal menu — only software management for now. The other tools (Dashboard,
+// Bulk Import, AI Enhancer, Review, Sources, Automation, Settings) still exist
+// and are reachable by URL; they were removed from the menu on request and can
+// be restored here later.
 $nav = [
-    '/admin'             => ['Dashboard', '▚'],
+    '/admin/platform'     => ['Platforms', '▚'],
     '/admin/software/new' => ['Add Software', '➕'],
-    '/admin/software'    => ['All Software', '▤'],
-    '/admin/bulk-import' => ['Bulk Import', '⬇'],
-    '/admin/ai'          => ['AI Enhancer', '✨'],
-    '/admin/review'      => ['Review Queue', '⚑'],
-    '/admin/sources'     => ['Source Manager', '⇄'],
-    '/admin/automation'  => ['Automation', '⚙'],
-    '/admin/settings'    => ['Settings', '⚑'],
+    '/admin/software'     => ['All Software', '▤'],
 ];
 // Highlight only the most specific (longest) matching nav item.
 $activeHref = '';
