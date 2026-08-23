@@ -136,8 +136,11 @@ final class SoftwareAdminController extends AdminController
         }
         $done = true;
         $cols = [
-            'video_url'   => "ALTER TABLE software ADD COLUMN video_url VARCHAR(500) NULL",
-            'auto_update' => "ALTER TABLE software ADD COLUMN auto_update TINYINT(1) NOT NULL DEFAULT 0",
+            'video_url'     => "ALTER TABLE software ADD COLUMN video_url VARCHAR(500) NULL",
+            'auto_update'   => "ALTER TABLE software ADD COLUMN auto_update TINYINT(1) NOT NULL DEFAULT 0",
+            'editor_rating' => "ALTER TABLE software ADD COLUMN editor_rating DECIMAL(2,1) NULL",
+            'badges'        => "ALTER TABLE software ADD COLUMN badges VARCHAR(255) NULL",
+            'install_steps' => "ALTER TABLE software ADD COLUMN install_steps TEXT NULL",
         ];
         foreach ($cols as $col => $sql) {
             $exists = Database::scalar(
@@ -196,6 +199,14 @@ final class SoftwareAdminController extends AdminController
                     ['s' => $id, 'u' => $url, 'o' => ++$order]);
             }
         }
+    }
+
+    /** Comma-joined trust badges from the badges[] checkboxes. */
+    private function badgesInput(): string
+    {
+        $allowed = ["Editor's Choice", 'Virus-free', 'Ad-free', 'Offline', 'Portable', 'Open-source'];
+        $sel = array_values(array_filter((array) $this->request->input('badges', []), static fn($b) => in_array((string) $b, $allowed, true)));
+        return implode(', ', array_slice($sel, 0, 6));
     }
 
     /** Save screenshot URLs (e.g. an auto website screenshot) for a software id. */
@@ -828,6 +839,25 @@ final class SoftwareAdminController extends AdminController
         ]);
     }
 
+    /** GET /admin/software/filesize?url=… — read the download's real size (Content-Length). (AU1) */
+    public function fileSize(array $args = []): never
+    {
+        $this->requirePermission('software.manage');
+        $url = trim($this->request->str('url'));
+        if (!preg_match('~^https?://~i', $url)) {
+            $this->json(['ok' => false, 'message' => 'Enter the download URL first.']);
+        }
+        $bytes = \App\Support\Http::contentLength($url);
+        if ($bytes === null || $bytes <= 0) {
+            $this->json(['ok' => false, 'message' => 'Size not reported by that link.']);
+        }
+        $units = ['B', 'KB', 'MB', 'GB'];
+        $i = 0;
+        $n = (float) $bytes;
+        while ($n >= 1024 && $i < count($units) - 1) { $n /= 1024; $i++; }
+        $this->json(['ok' => true, 'size' => (($n < 10 && $i > 0) ? round($n, 1) : round($n)) . ' ' . $units[$i]]);
+    }
+
     /** POST /admin/software/ai-assist — grammar fix / translate / rewrite one text field. (B4/B5) */
     public function aiAssist(array $args = []): never
     {
@@ -983,6 +1013,10 @@ final class SoftwareAdminController extends AdminController
             'logo'                  => $logo,
             'video_url'             => $this->request->str('video_url') ?: null,
             'auto_update'           => $this->request->str('auto_update') === '1' ? 1 : 0,
+            'editor_rating'         => is_numeric($this->request->str('editor_rating')) ? (float) $this->request->str('editor_rating') : null,
+            'badges'                => $this->badgesInput() ?: null,
+            'changelog'             => (string) $this->request->input('changelog', '') ?: null,
+            'install_steps'         => (string) $this->request->input('install_steps', '') ?: null,
             'source_type'           => 'manual',
         ];
 
@@ -994,7 +1028,8 @@ final class SoftwareAdminController extends AdminController
         $data['status']       = $this->request->str('status', 'published');
         \App\Services\Dedupe::ensureSchema();
         $data['dedupe_key']   = \App\Services\Dedupe::key($name);
-        $data['slug']         = $this->uniqueSlug(slugify($name));
+        $wantSlug             = $this->request->str('slug');
+        $data['slug']         = $this->uniqueSlug(slugify($wantSlug !== '' ? $wantSlug : $name));
         $data['discovered_at'] = gmdate('Y-m-d H:i:s');
         $data['last_checked_at'] = gmdate('Y-m-d H:i:s');
         $data['last_updated'] = $data['release_date'] ?: gmdate('Y-m-d H:i:s');
@@ -1222,8 +1257,17 @@ final class SoftwareAdminController extends AdminController
             'logo'                  => $logo,
             'video_url'             => $this->request->str('video_url') ?: null,
             'auto_update'           => $this->request->str('auto_update') === '1' ? 1 : 0,
+            'editor_rating'         => is_numeric($this->request->str('editor_rating')) ? (float) $this->request->str('editor_rating') : null,
+            'badges'                => $this->badgesInput() ?: null,
+            'changelog'             => (string) $this->request->input('changelog', '') ?: null,
+            'install_steps'         => (string) $this->request->input('install_steps', '') ?: null,
             'status'                => $this->request->str('status', (string) $software['status']),
         ];
+        // Custom slug (kept unique); fall back to the existing one.
+        $wantSlug = slugify($this->request->str('slug'));
+        if ($wantSlug !== '' && $wantSlug !== (string) $software['slug']) {
+            $data['slug'] = $this->uniqueSlug($wantSlug);
+        }
         $data['is_open_source'] = $data['price_type'] === 'open_source' ? 1 : (int) $software['is_open_source'];
         $data['trust_score']    = TrustScore::compute($data + $software);
         $data['quality_score']  = TrustScore::quality($data + $software);

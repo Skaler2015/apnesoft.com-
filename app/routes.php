@@ -92,6 +92,7 @@ $router->get('/admin/software/discover-search', [SoftwareAdminController::class,
 $router->get('/admin/software/dupe-check', [SoftwareAdminController::class, 'dupeCheck']);
 $router->get('/admin/software/link-check', [SoftwareAdminController::class, 'linkCheck']);
 $router->get('/admin/software/version-fetch', [SoftwareAdminController::class, 'versionFetch']);
+$router->get('/admin/software/filesize', [SoftwareAdminController::class, 'fileSize']);
 $router->post('/admin/software/ai-assist', [SoftwareAdminController::class, 'aiAssist']);
 $router->post('/admin/software/publish-one', [SoftwareAdminController::class, 'publishOne']);
 $router->post('/admin/software/queue', [SoftwareAdminController::class, 'queueBackground']);

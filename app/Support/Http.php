@@ -22,6 +22,23 @@ final class Http
         return self::request('HEAD', $url, $headers, $timeout);
     }
 
+    /** Best-effort byte size of a URL from its Content-Length header, or null. */
+    public static function contentLength(string $url): ?int
+    {
+        $resp = self::head($url, [], 12);
+        $len = $resp['headers']['content-length'] ?? null;
+        // Some servers only report length on a GET; retry once if HEAD didn't.
+        if (($len === null || (int) $len <= 0) && ($resp['status'] < 200 || $resp['status'] >= 400 || $len === null)) {
+            $resp = self::request('GET', $url, ['Range: bytes=0-0'], 12);
+            if (isset($resp['headers']['content-range']) && preg_match('~/(\d+)\s*$~', $resp['headers']['content-range'], $m)) {
+                $len = $m[1];
+            } elseif (isset($resp['headers']['content-length'])) {
+                $len = $resp['headers']['content-length'];
+            }
+        }
+        return ($len !== null && (int) $len > 0) ? (int) $len : null;
+    }
+
     /**
      * POST a JSON body and return the raw response. Used by the AI enhancer to
      * call the Anthropic Messages API. Longer default timeout for model latency.

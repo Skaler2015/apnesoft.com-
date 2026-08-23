@@ -163,6 +163,7 @@ $action = $action ?? base_url('/admin/software/new');
         <label>Official website<input name="official_website" value="<?= e($fv('official_website')) ?>" placeholder="https://…"></label>
         <label>Developer website<input name="developer_website" value="<?= e($fv('developer_website')) ?>" placeholder="https://…"></label>
         <label class="col-2">Official download URL<input name="official_download_url" value="<?= e($fv('official_download_url')) ?>" placeholder="https://… (official / authorized source only)"></label>
+        <label class="col-2">🔗 Slug (web address) <span class="muted small">(खाली छोड़ें तो नाम से अपने-आप)</span><input name="slug" value="<?= e($fv('slug')) ?>" placeholder="google-chrome"></label>
         <div>
             <label style="margin-bottom:6px">Price type</label>
             <div style="display:flex;gap:8px">
@@ -273,6 +274,26 @@ $action = $action ?? base_url('/admin/software/new');
         <label class="col-2">🏷️ Tags <span class="muted small">(comma separated)</span><input name="tags" value="<?= e($tagsText ?? '') ?>" placeholder="video editor, free, offline"></label>
 
         <label class="col-2">Minimum requirements<textarea name="minimum_requirements" rows="3"><?= e($fv('minimum_requirements')) ?></textarea></label>
+
+        <label>⭐ आपकी rating
+            <select name="editor_rating">
+                <?php $curR = (string) $fv('editor_rating'); foreach (['' => '—', '5' => '★★★★★ (5)', '4.5' => '★★★★☆ (4.5)', '4' => '★★★★ (4)', '3.5' => '★★★☆ (3.5)', '3' => '★★★ (3)', '2' => '★★ (2)', '1' => '★ (1)'] as $rv => $rl): ?>
+                    <option value="<?= $rv ?>" <?= $curR === $rv ? 'selected' : '' ?>><?= $rl ?></option>
+                <?php endforeach; ?>
+            </select>
+        </label>
+        <div>
+            <label style="margin-bottom:6px">🏅 Trust badges</label>
+            <?php $badgeSel = array_map('trim', explode(',', $fv('badges'))); ?>
+            <div style="display:flex;flex-wrap:wrap;gap:10px 16px">
+                <?php foreach (['Editor\'s Choice', 'Virus-free', 'Ad-free', 'Offline', 'Portable', 'Open-source'] as $bg): ?>
+                    <label class="check" style="font-weight:400"><input type="checkbox" name="badges[]" value="<?= e($bg) ?>" <?= in_array($bg, $badgeSel, true) ? 'checked' : '' ?>> <?= e($bg) ?></label>
+                <?php endforeach; ?>
+            </div>
+        </div>
+
+        <label class="col-2">🆕 Changelog / What's new <span class="muted small">(इस version में क्या नया)</span><textarea name="changelog" rows="3" placeholder="• तेज़ startup&#10;• bug fixes"><?= e($fv('changelog')) ?></textarea></label>
+        <label class="col-2">🔧 Install steps <span class="muted small">(एक step प्रति लाइन)</span><textarea name="install_steps" rows="3" placeholder="Download the installer&#10;Run and follow prompts&#10;Launch the app"><?= e($fv('install_steps')) ?></textarea></label>
         </div>
     </section>
 
@@ -1058,6 +1079,125 @@ $action = $action ?? base_url('/admin/software/new');
             var card = bad.closest('.form-card[data-tab]');
             if (card && card.classList.contains('tab-hidden')) { show(card.getAttribute('data-tab')); }
         }
+    });
+})();
+</script>
+
+<style>
+.rt-full{position:fixed!important;inset:14px!important;z-index:1200!important;max-height:none!important;min-height:0!important;box-shadow:0 0 0 100vmax rgba(8,10,16,.6)}
+.mic-live{background:var(--red)!important;color:#fff!important;border-color:var(--red)!important;animation:micp 1s infinite}
+@keyframes micp{50%{opacity:.55}}
+.emoji-pop{position:absolute;z-index:1000;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 12px 30px rgba(0,0,0,.3);padding:8px;display:flex;flex-wrap:wrap;gap:4px;max-width:230px}
+.emoji-pop button{border:0;background:transparent;font-size:1.15rem;cursor:pointer;line-height:1;padding:3px;border-radius:6px}
+.emoji-pop button:hover{background:var(--surface-2)}
+.kw-meter{margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:.8rem;color:var(--muted)}
+.kw-meter input{padding:.4em .6em;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);color:var(--text);font-size:.85rem;max-width:180px}
+.wc{margin-top:6px;font-size:.76rem;color:var(--muted);font-family:ui-monospace,monospace}
+.help-q{display:inline-grid;place-items:center;width:15px;height:15px;border-radius:50%;background:var(--surface-2);border:1px solid var(--border);color:var(--muted);font-size:.66rem;cursor:help;margin-left:5px}
+@media (prefers-reduced-motion:reduce){.mic-live{animation:none}}
+</style>
+
+<script>
+(function () {
+    var form = document.querySelector('.admin-form'); if (!form) return;
+    var byName = function (n) { return form.querySelector('[name="' + n + '"]'); };
+    var $ = function (id) { return document.getElementById(id); };
+    var U = { filesize: <?= json_encode(base_url('/admin/software/filesize')) ?> };
+    function pill(msg) { var p = document.getElementById('tool-pill') || (function () { var e = document.createElement('div'); e.id = 'tool-pill'; e.className = 'tool-save-pill'; document.body.appendChild(e); return e; })(); p.textContent = msg; p.classList.add('show'); clearTimeout(p._t); p._t = setTimeout(function () { p.classList.remove('show'); }, 1600); }
+    function tbtn(label, title, fn) { var b = document.createElement('button'); b.type = 'button'; b.className = 'mini-tool'; b.textContent = label; if (title) b.title = title; b.addEventListener('click', fn); return b; }
+    function after(el, node) { if (el) el.insertAdjacentElement('afterend', node); }
+    var edEl = $('rt-ed'), srcEl = $('rt-src');
+    function longText() { return edEl ? (edEl.innerText || '').trim() : ''; }
+    function syncSrc() { if (edEl && srcEl) srcEl.value = edEl.innerHTML; }
+
+    // ---------- 🎤 Voice input (free browser speech) ----------
+    var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    function micFor(getEl, isRich) {
+        if (!SR) return null;
+        var b = tbtn('🎤 बोलें', 'बोलकर भरें', function () {
+            var rec = new SR(); rec.lang = 'hi-IN'; rec.interimResults = false; rec.continuous = false;
+            b.classList.add('mic-live'); b.textContent = '● सुन रहे हैं…';
+            rec.onresult = function (e) {
+                var t = ''; for (var i = 0; i < e.results.length; i++) t += e.results[i][0].transcript;
+                if (isRich && edEl) { edEl.focus(); document.execCommand('insertText', false, (edEl.innerText ? ' ' : '') + t); syncSrc(); }
+                else { var el = getEl(); if (el) el.value = (el.value ? el.value + ' ' : '') + t; el.dispatchEvent(new Event('input')); }
+            };
+            rec.onend = function () { b.classList.remove('mic-live'); b.textContent = '🎤 बोलें'; };
+            rec.onerror = function () { b.classList.remove('mic-live'); b.textContent = '🎤 बोलें'; pill('माइक नहीं चला'); };
+            try { rec.start(); } catch (e) {}
+        });
+        return b;
+    }
+    var nameEl = byName('name');
+    if (SR && nameEl) { var nb = micFor(function () { return nameEl; }, false); if (nb) { nb.style.marginTop = '0'; var host = nameEl.parentNode; if (host) host.appendChild(nb); } }
+    var rtTb = document.querySelector('.rt-tb');
+    if (SR && rtTb && edEl) { var rb = micFor(null, true); if (rb) rtTb.appendChild(rb); }
+
+    // ---------- AU1: auto file-size ----------
+    var sizeEl = byName('file_size');
+    if (sizeEl) after(sizeEl, tbtn('↻ auto size', 'download link से size', function () {
+        var u = ((byName('official_download_url') || {}).value || (byName('official_website') || {}).value || '').trim();
+        if (!/^https?:/i.test(u)) { pill('पहले download URL भरें'); return; }
+        var btn = this; btn.disabled = true; btn.textContent = '…';
+        fetch(U.filesize + '?url=' + encodeURIComponent(u)).then(function (r) { return r.json(); }).then(function (res) {
+            btn.disabled = false; btn.textContent = '↻ auto size';
+            if (res.ok) { sizeEl.value = res.size; sizeEl.dispatchEvent(new Event('input')); pill('✓ size मिला'); } else pill(res.message || 'size नहीं मिला');
+        }).catch(function () { btn.disabled = false; btn.textContent = '↻ auto size'; });
+    }));
+
+    // ---------- AU2: VirusTotal scan link ----------
+    var dlEl2 = byName('official_download_url');
+    if (dlEl2) after(dlEl2.nextElementSibling || dlEl2, tbtn('🛡️ VirusTotal में जाँचें', '', function () {
+        var u = (dlEl2.value || '').trim(); if (!/^https?:/i.test(u)) { pill('पहले download URL भरें'); return; }
+        window.open('https://www.virustotal.com/gui/home/url', '_blank');
+        if (navigator.clipboard) { navigator.clipboard.writeText(u); pill('URL copy हुआ — VirusTotal में paste करें'); }
+    }));
+
+    // ---------- UX1: word/char count + SE3 keyword density ----------
+    if (edEl) {
+        var wc = document.createElement('div'); wc.className = 'wc'; after(edEl.parentNode, wc);
+        var kw = document.createElement('div'); kw.className = 'kw-meter';
+        kw.innerHTML = '<span>🎯 Focus keyword:</span><input id="kw-in" placeholder="video editor"><span id="kw-out"></span>';
+        after(wc, kw);
+        function upd() {
+            var t = longText(); var words = t ? t.split(/\s+/).filter(Boolean).length : 0; var chars = t.length;
+            wc.textContent = words + ' शब्द · ' + chars + ' अक्षर';
+            var k = ($('kw-in').value || '').trim().toLowerCase();
+            if (k) { var m = (t.toLowerCase().match(new RegExp(k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')) || []).length; var d = words ? (m / words * 100) : 0; $('kw-out').textContent = m + ' बार · ' + d.toFixed(1) + '% ' + (d >= 0.5 && d <= 2.5 ? '✔' : '(0.5–2.5% अच्छा)'); }
+            else $('kw-out').textContent = '';
+        }
+        edEl.addEventListener('input', upd); $('kw-in').addEventListener('input', upd); upd();
+    }
+
+    // ---------- UX2: fullscreen editor ----------
+    if (edEl && rtTb) {
+        var fs = document.createElement('button'); fs.type = 'button'; fs.title = 'Fullscreen'; fs.textContent = '⛶';
+        fs.addEventListener('click', function () { edEl.classList.toggle('rt-full'); document.body.style.overflow = edEl.classList.contains('rt-full') ? 'hidden' : ''; edEl.focus(); });
+        rtTb.appendChild(fs);
+        document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && edEl.classList.contains('rt-full')) { edEl.classList.remove('rt-full'); document.body.style.overflow = ''; } });
+    }
+
+    // ---------- UX5: emoji picker ----------
+    if (edEl && rtTb) {
+        var EM = ['😀','😁','😍','🔥','🚀','✅','⭐','👍','💡','🎯','🛡️','⚡','📌','🎉','💻','📱','🖥️','⬇️','🔒','🌐'];
+        var em = document.createElement('button'); em.type = 'button'; em.title = 'Emoji'; em.textContent = '😊';
+        em.addEventListener('click', function (e) {
+            var old = document.querySelector('.emoji-pop'); if (old) { old.remove(); return; }
+            var pop = document.createElement('div'); pop.className = 'emoji-pop';
+            EM.forEach(function (ch) { var x = document.createElement('button'); x.type = 'button'; x.textContent = ch; x.addEventListener('click', function () { edEl.focus(); document.execCommand('insertText', false, ch); syncSrc(); pop.remove(); }); pop.appendChild(x); });
+            document.body.appendChild(pop); var r = em.getBoundingClientRect(); pop.style.top = (window.scrollY + r.bottom + 5) + 'px'; pop.style.left = (window.scrollX + r.left) + 'px';
+            setTimeout(function () { document.addEventListener('click', function h(ev) { if (!pop.contains(ev.target) && ev.target !== em) { pop.remove(); document.removeEventListener('click', h); } }); }, 10);
+        });
+        rtTb.appendChild(em);
+    }
+
+    // ---------- UX3: help tooltips ----------
+    var helps = { 'slug': 'यह post का web-पता (URL) है — साफ़, keyword वाला रखें।', 'editor_rating': 'आपकी अपनी star-rating — visitor को भरोसा देती है।', 'changelog': 'नए version में क्या बदला — update चाहने वाले लौटते हैं।' };
+    Object.keys(helps).forEach(function (n) {
+        var el = byName(n); if (!el) return; var lab = el.closest('label') || el.parentNode;
+        var target = lab.querySelector('label') || lab.firstChild;
+        var q = document.createElement('span'); q.className = 'help-q'; q.textContent = '?'; q.title = helps[n];
+        if (lab.tagName === 'LABEL') lab.insertBefore(q, lab.querySelector('input,select,textarea'));
     });
 })();
 </script>

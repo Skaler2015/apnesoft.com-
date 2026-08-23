@@ -25,6 +25,15 @@ $hasDownload = !empty($s['official_download_url']) || !empty($s['official_websit
             <h1><?= e($s['name']) ?></h1>
             <p class="detail-short"><?= e($s['short_description'] ?: str_excerpt($s['long_description'], 160)) ?></p>
             <div class="detail-badges">
+                <?php if (!empty($s['editor_rating']) && (float) $s['editor_rating'] > 0):
+                    $r = (float) $s['editor_rating']; $full = (int) floor($r); $half = ($r - $full) >= 0.5; ?>
+                    <span class="rating-stars" title="<?= e($r) ?> / 5" style="color:#f5a623;font-weight:700">
+                        <?= str_repeat('★', $full) . ($half ? '½' : '') ?> <span class="muted small"><?= e(rtrim(rtrim((string) $r, '0'), '.')) ?>/5</span>
+                    </span>
+                <?php endif; ?>
+                <?php foreach (array_filter(array_map('trim', explode(',', (string) ($s['badges'] ?? '')))) as $bg): ?>
+                    <span class="chip chip-soft small">✓ <?= e($bg) ?></span>
+                <?php endforeach; ?>
                 <?php if ($lb['label']): ?><span class="license-badge <?= e($lb['class']) ?>"><?= e($lb['label']) ?></span><?php endif; ?>
                 <?php if (!empty($s['version'])): ?><span class="chip">v<?= e($s['version']) ?></span><?php endif; ?>
                 <?php if (!empty($s['developer_name'])): ?><span class="chip chip-ghost">By <?= e($s['developer_name']) ?></span><?php endif; ?>
@@ -108,6 +117,17 @@ $hasDownload = !empty($s['official_download_url']) || !empty($s['official_websit
         <section class="detail-section"><h2>System Requirements</h2>
             <div class="prose"><?= nl2br(e($s['minimum_requirements'])) ?></div>
         </section>
+        <?php endif; ?>
+
+        <?php if (!empty($s['install_steps'])):
+            $steps = array_values(array_filter(array_map('trim', preg_split('/\r\n|\r|\n/', (string) $s['install_steps']) ?: []))); ?>
+        <?php if ($steps): ?>
+        <section class="detail-section"><h2>How to install <?= e($s['name']) ?></h2>
+            <ol class="install-steps">
+                <?php foreach ($steps as $step): ?><li><?= e(ltrim($step, "•-0123456789. \t")) ?></li><?php endforeach; ?>
+            </ol>
+        </section>
+        <?php endif; ?>
         <?php endif; ?>
 
         <?php if (!empty($s['video_url'])):
