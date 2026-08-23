@@ -384,6 +384,82 @@ final class SoftwareAdminController extends AdminController
         $this->json(['ok' => true, 'id' => $id, 'name' => $name]);
     }
 
+    /** Default OS versions offered in the multi-select, merged with saved ones. */
+    private function osVersionOptions(): array
+    {
+        $defaults = [
+            'Windows 11', 'Windows 10', 'Windows 8.1', 'Windows 7',
+            'macOS 15 (Sequoia)', 'macOS 14 (Sonoma)', 'macOS 13 (Ventura)',
+            'iOS 18', 'iOS 17', 'iPadOS 18',
+            'Android 15', 'Android 14', 'Android 13',
+            'Linux', 'Chrome OS',
+        ];
+        $saved = [];
+        $raw = (string) \App\Core\Settings::get('os_versions', '');
+        if ($raw !== '') {
+            $decoded = json_decode($raw, true);
+            if (is_array($decoded)) {
+                $saved = array_map('strval', $decoded);
+            }
+        }
+        // Saved first (newest custom entries surface at the top), then defaults.
+        $all = array_merge($saved, $defaults);
+        $seen = [];
+        $out = [];
+        foreach ($all as $v) {
+            $v = trim($v);
+            $k = mb_strtolower($v);
+            if ($v !== '' && !isset($seen[$k])) {
+                $seen[$k] = true;
+                $out[] = $v;
+            }
+        }
+        return $out;
+    }
+
+    /** Persist any newly-used OS versions so they appear in the dropdown next time. */
+    private function rememberOsVersions(array $versions): void
+    {
+        $current = $this->osVersionOptions();
+        $known = [];
+        foreach ($current as $v) {
+            $known[mb_strtolower($v)] = true;
+        }
+        $added = false;
+        $custom = [];
+        $raw = (string) \App\Core\Settings::get('os_versions', '');
+        if ($raw !== '') {
+            $decoded = json_decode($raw, true);
+            if (is_array($decoded)) {
+                $custom = array_map('strval', $decoded);
+            }
+        }
+        foreach ($versions as $v) {
+            $v = trim((string) $v);
+            if ($v !== '' && mb_strlen($v) <= 60 && !isset($known[mb_strtolower($v)])) {
+                array_unshift($custom, $v);
+                $known[mb_strtolower($v)] = true;
+                $added = true;
+            }
+        }
+        if ($added) {
+            \App\Core\Settings::set('os_versions', array_slice($custom, 0, 60), 'software', 'json');
+        }
+    }
+
+    /** POST /admin/software/os-version — add an OS version to the dropdown; returns the list. */
+    public function osVersion(array $args = []): never
+    {
+        $this->requirePermission('software.manage');
+        Csrf::check($this->request);
+        $name = trim($this->request->str('name'));
+        if (mb_strlen($name) < 2) {
+            $this->json(['ok' => false, 'message' => 'Enter an OS version.']);
+        }
+        $this->rememberOsVersions([$name]);
+        $this->json(['ok' => true, 'name' => mb_substr($name, 0, 60), 'options' => $this->osVersionOptions()]);
+    }
+
     /** POST /admin/software/trending — queue recently-trending open-source apps. */
     public function trending(array $args = []): never
     {
@@ -508,6 +584,7 @@ final class SoftwareAdminController extends AdminController
             'categories' => Category::all(),
             'oss'        => Database::all('SELECT * FROM operating_systems ORDER BY sort_order'),
             'preOs'      => $preOs,
+            'osVersions' => $this->osVersionOptions(),
             'panelLabel' => \App\Controllers\Admin\PlatformController::current()['label'] ?? null,
         ]);
     }
@@ -533,7 +610,17 @@ final class SoftwareAdminController extends AdminController
         if (!$osIds && ($panelOs = $this->panelOsId()) > 0) {
             $osIds = [$panelOs];
         }
-        $osLabel = $osIds ? Classifier::osLabel($osIds) : $this->request->str('operating_system');
+        // Detailed OS versions the admin picked from the multi-select (or typed).
+        $osVersions = array_values(array_filter(array_map(
+            static fn($v) => trim((string) $v),
+            (array) $this->request->input('os_versions', [])
+        )));
+        $osText = $osVersions ? implode(', ', array_slice($osVersions, 0, 12)) : $this->request->str('operating_system');
+        // Text column: prefer the specific versions; fall back to the platform label.
+        $osLabel = $osText !== '' ? $osText : ($osIds ? Classifier::osLabel($osIds) : '');
+        if ($osVersions) {
+            $this->rememberOsVersions($osVersions);
+        }
 
         // Logo: an uploaded file wins over the URL field.
         $logo = $this->request->str('logo') ?: null;

@@ -76,11 +76,13 @@ final class SoftwareLookup
     {
         $best['category_id'] = Classifier::detectCategory((string) $best['name'],
             (string) ($best['long_description'] ?? '') . ' ' . (string) ($best['signals'] ?? ''));
-        // Give it a logo — the official site's favicon — when none was found.
-        if (empty($best['logo']) && !empty($best['official_website'])) {
-            $host = parse_url((string) $best['official_website'], PHP_URL_HOST);
-            if ($host) {
-                $best['logo'] = 'https://www.google.com/s2/favicons?domain=' . $host . '&sz=128';
+        // Give it a logo — Google's favicon service for the official domain — when none was found.
+        if (empty($best['logo'])) {
+            foreach (['official_website', 'official_download_url', 'developer_website'] as $field) {
+                if (!empty($best[$field]) && ($host = parse_url((string) $best[$field], PHP_URL_HOST))) {
+                    $best['logo'] = 'https://www.google.com/s2/favicons?domain=' . $host . '&sz=128';
+                    break;
+                }
             }
         }
         $best['match'] = $score;

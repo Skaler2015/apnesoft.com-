@@ -93,6 +93,7 @@ $router->post('/admin/software/pack', [SoftwareAdminController::class, 'pack']);
 $router->post('/admin/software/ai-category', [SoftwareAdminController::class, 'aiCategory']);
 $router->post('/admin/software/trending', [SoftwareAdminController::class, 'trending']);
 $router->post('/admin/software/category', [SoftwareAdminController::class, 'addCategory']);
+$router->post('/admin/software/os-version', [SoftwareAdminController::class, 'osVersion']);
 $router->get('/admin/publishing', [SoftwareAdminController::class, 'dashboard']);
 $router->get('/admin/software/new', [SoftwareAdminController::class, 'create']);
 $router->post('/admin/software/new', [SoftwareAdminController::class, 'store']);

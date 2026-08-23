@@ -54,7 +54,21 @@
         <label>Developer<input name="developer_name" id="f-dev" value="<?= old('developer_name') ?>"></label>
         <label>Version<input name="version" value="<?= old('version') ?>" placeholder="e.g. 1.2.3"></label>
         <label>File size<input name="file_size" id="f-size" value="<?= old('file_size') ?>" placeholder="e.g. 45 MB"></label>
-        <label>Operating system (text)<input name="operating_system" value="<?= old('operating_system') ?>" placeholder="e.g. Windows 10/11 (optional)"></label>
+
+        <div class="col-2">
+            <label style="margin-bottom:6px">Operating system versions <span class="muted small">(tick one or more — this shows on the software page)</span></label>
+            <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap">
+                <div id="osv-box" style="flex:1;min-width:240px;max-height:160px;overflow:auto;border:1px solid var(--border);border-radius:8px;padding:9px 12px;background:var(--surface-2);display:flex;flex-wrap:wrap;gap:8px 18px">
+                    <?php $oldOsv = isset($_POST['os_versions']) && is_array($_POST['os_versions']) ? $_POST['os_versions'] : []; ?>
+                    <?php foreach (($osVersions ?? []) as $v): ?>
+                        <label class="check" style="font-weight:400;white-space:nowrap">
+                            <input type="checkbox" name="os_versions[]" value="<?= e($v) ?>" <?= in_array($v, $oldOsv, true) ? 'checked' : '' ?>> <?= e($v) ?>
+                        </label>
+                    <?php endforeach; ?>
+                </div>
+                <button type="button" id="osv-add-btn" class="btn btn-ghost" title="Add a new OS version to this list">+ New</button>
+            </div>
+        </div>
         <label>Official website<input name="official_website" value="<?= old('official_website') ?>" placeholder="https://…"></label>
         <label>Developer website<input name="developer_website" value="<?= old('developer_website') ?>" placeholder="https://…"></label>
         <label class="col-2">Official download URL<input name="official_download_url" value="<?= old('official_download_url') ?>" placeholder="https://… (official / authorized source only)"></label>
@@ -146,6 +160,18 @@
     </div>
 </form>
 
+<div id="osv-modal" style="display:none;position:fixed;inset:0;background:rgba(10,12,20,.6);align-items:center;justify-content:center;z-index:1000;padding:20px">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;max-width:420px;width:100%;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,.4)">
+        <h3 style="margin:0 0 12px;font-size:1.1rem">➕ New OS version</h3>
+        <input id="osv-name" placeholder="e.g. Windows Server 2022" style="width:100%" maxlength="60">
+        <div id="osv-msg" class="muted small" style="margin-top:6px">It gets added to the list and ticked automatically.</div>
+        <div style="display:flex;gap:10px;margin-top:16px;justify-content:flex-end">
+            <button type="button" id="osv-cancel" class="btn btn-ghost btn-sm">Cancel</button>
+            <button type="button" id="osv-save" class="btn btn-primary btn-sm">Add version</button>
+        </div>
+    </div>
+</div>
+
 <div id="cat-modal" style="display:none;position:fixed;inset:0;background:rgba(10,12,20,.6);align-items:center;justify-content:center;z-index:1000;padding:20px">
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;max-width:420px;width:100%;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,.4)">
         <h3 style="margin:0 0 12px;font-size:1.1rem">➕ New category</h3>
@@ -225,6 +251,68 @@
                 .catch(function () { catSave.disabled = false; catMsg.textContent = 'Failed — try again.'; });
         });
     }
+
+    // ---- Add an OS version inline (popup) ----
+    var osvBtn = document.getElementById('osv-add-btn');
+    var osvModal = document.getElementById('osv-modal');
+    var osvBox = document.getElementById('osv-box');
+    if (osvBtn && osvModal && osvBox) {
+        var osvName = document.getElementById('osv-name');
+        var osvMsg = document.getElementById('osv-msg');
+        var osvSave = document.getElementById('osv-save');
+        var oi = document.querySelector('.admin-form input[name="_csrf"]');
+        var O_NAME = oi ? oi.name : '_csrf', O_VAL = oi ? oi.value : '';
+        function closeOsv() { osvModal.style.display = 'none'; }
+        function addOsvChip(val, checked) {
+            var exists = false;
+            osvBox.querySelectorAll('input[name="os_versions[]"]').forEach(function (cb) {
+                if (cb.value.toLowerCase() === val.toLowerCase()) { exists = true; if (checked) cb.checked = true; }
+            });
+            if (exists) return;
+            var lab = document.createElement('label');
+            lab.className = 'check';
+            lab.style.cssText = 'font-weight:400;white-space:nowrap';
+            var cb = document.createElement('input');
+            cb.type = 'checkbox'; cb.name = 'os_versions[]'; cb.value = val; cb.checked = !!checked;
+            lab.appendChild(cb); lab.appendChild(document.createTextNode(' ' + val));
+            osvBox.insertBefore(lab, osvBox.firstChild);
+        }
+        osvBtn.addEventListener('click', function () { osvModal.style.display = 'flex'; osvName.value = ''; osvMsg.textContent = 'It gets added to the list and ticked automatically.'; osvName.focus(); });
+        document.getElementById('osv-cancel').addEventListener('click', closeOsv);
+        osvModal.addEventListener('click', function (e) { if (e.target === osvModal) closeOsv(); });
+        osvName.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); osvSave.click(); } });
+        osvSave.addEventListener('click', function () {
+            var n = osvName.value.trim();
+            if (n.length < 2) { osvMsg.textContent = 'Enter an OS version.'; return; }
+            osvSave.disabled = true; osvMsg.textContent = 'Adding…';
+            var body = new URLSearchParams(); body.append(O_NAME, O_VAL); body.append('name', n);
+            fetch(<?= json_encode(base_url('/admin/software/os-version')) ?>, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body })
+                .then(function (r) { return r.json(); })
+                .then(function (res) {
+                    osvSave.disabled = false;
+                    if (!res.ok) { osvMsg.textContent = res.message || 'Failed.'; return; }
+                    addOsvChip(res.name || n, true);
+                    closeOsv();
+                    if (typeof updatePreview === 'function') updatePreview();
+                })
+                .catch(function () { osvSave.disabled = false; osvMsg.textContent = 'Failed — try again.'; });
+        });
+    }
+
+    // ---- Auto-fill the logo from Google when a website/download URL is entered ----
+    var logoIn = document.getElementById('f-logo');
+    function hostOf(u) { try { return new URL(u.match(/^https?:\/\//i) ? u : 'https://' + u).hostname; } catch (e) { return ''; } }
+    function autoLogoFrom(url) {
+        if (!logoIn || (logoIn.value || '').trim() !== '') return; // don't overwrite a chosen logo
+        var h = hostOf((url || '').trim());
+        if (!h) return;
+        logoIn.value = 'https://www.google.com/s2/favicons?domain=' + h + '&sz=128';
+        if (typeof updatePreview === 'function') updatePreview();
+    }
+    ['official_website', 'official_download_url', 'developer_website'].forEach(function (nm) {
+        var el = document.querySelector('[name="' + nm + '"]');
+        if (el) el.addEventListener('blur', function () { autoLogoFrom(el.value); });
+    });
 
     // ---- Rich text editor for the long description ----
     var rtEd = document.getElementById('rt-ed');
