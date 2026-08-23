@@ -17,8 +17,11 @@ $action = $action ?? base_url('/admin/software/new');
             <button onclick="document.getElementById('pubModal').remove()" class="btn btn-sm btn-ghost">✕ Close</button>
         </div>
         <iframe src="<?= e(base_url('/software/' . ($s['slug'] ?? ''))) ?>" title="Preview" loading="lazy" style="width:100%;height:60vh;border:0;background:#fff"></iframe>
+        <?php $liveUrl = base_url('/software/' . ($s['slug'] ?? '')); ?>
         <div style="display:flex;gap:10px;flex-wrap:wrap;padding:16px 20px;border-top:1px solid var(--border)">
-            <a class="btn btn-primary" href="<?= e(base_url('/software/' . ($s['slug'] ?? ''))) ?>" target="_blank">Open live page ↗</a>
+            <a class="btn btn-primary" href="<?= e($liveUrl) ?>" target="_blank">Open live page ↗</a>
+            <button type="button" class="btn btn-ghost" onclick="navigator.clipboard&&navigator.clipboard.writeText('<?= e($liveUrl) ?>');this.textContent='✓ Copied';">🔗 Link copy</button>
+            <a class="btn btn-ghost" href="https://wa.me/?text=<?= rawurlencode(($s['name'] ?? '') . ' — ' . $liveUrl) ?>" target="_blank" rel="noopener">🟢 WhatsApp</a>
             <a class="btn btn-ghost" href="<?= e(base_url('/admin/software/new')) ?>">➕ Add another</a>
         </div>
     </div>
@@ -714,5 +717,304 @@ $action = $action ?? base_url('/admin/software/new');
     });
     document.querySelectorAll('input[name="os[]"]').forEach(function (cb) { cb.addEventListener('change', updatePreview); });
     updatePreview();
+})();
+</script>
+
+<style>
+.mini-tool{font-size:.72rem;padding:3px 9px;margin-top:6px;border-radius:7px;border:1px solid var(--border);background:var(--surface-2);color:var(--text);cursor:pointer;align-self:flex-start}
+.mini-tool:hover{border-color:var(--brand);color:var(--brand)}
+.tool-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.tool-warn{margin-top:8px;background:color-mix(in srgb,var(--yellow) 14%,var(--surface));color:var(--yellow);border:1px solid color-mix(in srgb,var(--yellow) 40%,var(--border));border-radius:9px;padding:8px 11px;font-size:.84rem;font-weight:600}
+.tool-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.tool-chip{font-size:.75rem;padding:3px 9px;border-radius:999px;border:1px dashed var(--border);background:var(--surface-2);color:var(--muted);cursor:pointer}
+.tool-chip:hover{border-color:var(--brand);color:var(--brand)}
+.tool-thumb img{margin-top:8px;max-width:200px;border-radius:8px;border:1px solid var(--border);display:block}
+.tool-dz{margin-top:8px;border:1.5px dashed var(--border);border-radius:10px;padding:14px;text-align:center;color:var(--muted);font-size:.85rem;background:var(--surface-2);cursor:pointer}
+.tool-dz.over{border-color:var(--brand);color:var(--brand);background:color-mix(in srgb,var(--brand) 8%,var(--surface-2))}
+.tool-prev{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.tool-prev .tp{position:relative;width:92px;height:62px;border-radius:8px;overflow:hidden;border:1px solid var(--border)}
+.tool-prev .tp img{width:100%;height:100%;object-fit:cover}
+.tool-prev .rm{position:absolute;top:3px;right:3px;background:rgba(0,0,0,.6);color:#fff;border-radius:50%;width:18px;height:18px;display:grid;place-items:center;cursor:pointer;font-size:.68rem}
+.tool-ind{display:block;margin-top:6px;font-size:.8rem;font-weight:600}
+.tool-ind .ok{color:var(--green)}.tool-ind .bad{color:var(--red)}
+.tool-check{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:16px;box-shadow:var(--shadow)}
+.tool-check .ch-h{display:flex;justify-content:space-between;align-items:center;font-weight:700;font-size:.9rem}
+.tool-check .cbar{height:9px;border-radius:999px;background:var(--surface-2);overflow:hidden;margin:9px 0}
+.tool-check .cbar i{display:block;height:100%;background:linear-gradient(90deg,var(--brand),var(--brand-2));transition:width .3s}
+.tool-check .miss{display:flex;flex-wrap:wrap;gap:6px}
+.tool-check .miss span{font-size:.73rem;padding:2px 9px;border-radius:999px;background:color-mix(in srgb,var(--red) 13%,transparent);color:var(--red)}
+.tool-meter{display:flex;gap:16px;margin-top:10px;font-size:.78rem;color:var(--muted);flex-wrap:wrap}
+.tool-meter b{color:var(--text)}
+.tool-save-pill{position:fixed;bottom:20px;left:20px;background:var(--text);color:var(--surface);border-radius:999px;padding:6px 13px;font-size:.78rem;opacity:0;transition:.3s;z-index:60;pointer-events:none}
+.tool-save-pill.show{opacity:.92}
+.tool-restore{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:var(--surface);border:1px solid var(--brand);border-radius:12px;padding:11px 14px;margin-bottom:14px;font-size:.88rem;font-weight:600}
+.tool-tpl{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px;font-size:.85rem}
+.tool-tpl select{padding:.4em .6em;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);color:var(--text)}
+.pv-card.phone-mode{max-width:300px;border-radius:26px;border:8px solid var(--surface-2)}
+</style>
+
+<script>
+(function () {
+    var form = document.querySelector('.admin-form');
+    if (!form) return;
+    // Hidden accumulator for website-screenshot URLs (must live inside the form).
+    var shotUrlsField = document.createElement('input');
+    shotUrlsField.type = 'hidden'; shotUrlsField.name = 'screenshot_urls'; shotUrlsField.id = 'f-shoturls';
+    form.appendChild(shotUrlsField);
+    var byName = function (n) { return form.querySelector('[name="' + n + '"]'); };
+    var $ = function (id) { return document.getElementById(id); };
+    var ci = form.querySelector('input[name="_csrf"]');
+    var C_NAME = ci ? ci.name : '_csrf', C_VAL = ci ? ci.value : '';
+    var isEdit = /\/\d+\/edit/.test(form.getAttribute('action') || '');
+    var U = {
+        dupe: <?= json_encode(base_url('/admin/software/dupe-check')) ?>,
+        link: <?= json_encode(base_url('/admin/software/link-check')) ?>,
+        ver:  <?= json_encode(base_url('/admin/software/version-fetch')) ?>,
+        ai:   <?= json_encode(base_url('/admin/software/ai-assist')) ?>,
+        edit: <?= json_encode(base_url('/admin/software/')) ?>
+    };
+    function toast(msg) {
+        var p = $('tool-pill') || (function () { var e = document.createElement('div'); e.id = 'tool-pill'; e.className = 'tool-save-pill'; document.body.appendChild(e); return e; })();
+        p.textContent = msg; p.classList.add('show'); clearTimeout(p._t); p._t = setTimeout(function () { p.classList.remove('show'); }, 1600);
+    }
+    function toolBtn(label, title, fn) { var b = document.createElement('button'); b.type = 'button'; b.className = 'mini-tool'; b.textContent = label; if (title) b.title = title; b.addEventListener('click', fn); return b; }
+    function after(el, node) { if (el) el.insertAdjacentElement('afterend', node); }
+    function longText() { var ed = $('rt-ed'); return ed ? (ed.innerText || '').trim() : (byName('long_description') ? byName('long_description').value : ''); }
+    function setLong(t) { var ed = $('rt-ed'); if (ed) ed.innerText = t; var src = $('rt-src'); if (src) src.value = t; }
+
+    // ---------- A3: duplicate warning ----------
+    var nameEl = byName('name'), dupBox = null, dupT;
+    function setDup(html) {
+        if (!nameEl) return;
+        if (!dupBox) { dupBox = document.createElement('div'); dupBox.className = 'tool-warn'; (nameEl.closest('.col-2') || nameEl.parentNode).appendChild(dupBox); }
+        dupBox.innerHTML = html; dupBox.style.display = html ? 'block' : 'none';
+    }
+    if (nameEl && !isEdit) nameEl.addEventListener('input', function () {
+        clearTimeout(dupT); dupT = setTimeout(function () {
+            var n = (nameEl.value || '').trim(); if (n.length < 2) { setDup(''); return; }
+            fetch(U.dupe + '?name=' + encodeURIComponent(n)).then(function (r) { return r.json(); }).then(function (res) {
+                setDup(res.exists ? '⚠️ “' + res.name + '” पहले से publish है — <a href="' + U.edit + res.id + '/edit">खोलें</a>' : '');
+            }).catch(function () {});
+        }, 450);
+    });
+
+    // ---------- A2: paste-to-import ----------
+    var urlEl = $('f-url'), impBtn = $('url-import');
+    if (urlEl && impBtn) urlEl.addEventListener('paste', function () { setTimeout(function () { if (/^https?:\/\//i.test((urlEl.value || '').trim())) impBtn.click(); }, 60); });
+    if (nameEl && urlEl && impBtn) nameEl.addEventListener('paste', function () {
+        setTimeout(function () { var v = (nameEl.value || '').trim(); if (/^https?:\/\//i.test(v)) { urlEl.value = v; nameEl.value = ''; impBtn.click(); } }, 60);
+    });
+
+    // ---------- A5: keyboard shortcuts ----------
+    document.addEventListener('keydown', function (e) {
+        if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'Enter')) {
+            e.preventDefault(); var b = form.querySelector('.admin-form-actions .btn-primary'); if (b) b.click();
+        }
+    });
+
+    // ---------- D4: version fetch ----------
+    var verEl = byName('version');
+    if (verEl) after(verEl, toolBtn('↻ latest लाओ', 'official page से version', function () {
+        var w = ((byName('official_website') || {}).value || (byName('official_download_url') || {}).value || '').trim();
+        if (!w) { toast('पहले website भरें'); return; }
+        var btn = this; btn.disabled = true; btn.textContent = '…';
+        fetch(U.ver + '?url=' + encodeURIComponent(w)).then(function (r) { return r.json(); }).then(function (res) {
+            btn.disabled = false; btn.textContent = '↻ latest लाओ';
+            if (res.version) verEl.value = res.version;
+            if (res.file_size && byName('file_size') && !byName('file_size').value) byName('file_size').value = res.file_size;
+            if (res.release_date && byName('release_date') && !byName('release_date').value) byName('release_date').value = res.release_date;
+            toast(res.ok ? '✓ version मिला' : 'version नहीं मिला');
+        }).catch(function () { btn.disabled = false; btn.textContent = '↻ latest लाओ'; });
+    }));
+
+    // ---------- D1 + D2: link check + official-domain verify ----------
+    var dlEl = byName('official_download_url');
+    if (dlEl) {
+        var ind = document.createElement('span'); ind.className = 'tool-ind'; (dlEl.closest('label') || dlEl.parentNode).appendChild(ind);
+        dlEl.addEventListener('blur', function () {
+            var u = (dlEl.value || '').trim(); if (!/^https?:/i.test(u)) { ind.textContent = ''; return; }
+            ind.textContent = 'जाँच रहे हैं…';
+            fetch(U.link + '?url=' + encodeURIComponent(u)).then(function (r) { return r.json(); }).then(function (res) {
+                var html = res.ok ? '<span class="ok">✔ link ठीक (' + res.status + ')</span>' : '<span class="bad">✕ link ' + (res.status || 'नहीं खुला') + '</span>';
+                var ow = ((byName('official_website') || {}).value || '').trim();
+                try { if (ow) { var h1 = new URL(u).hostname.replace(/^www\./, ''), h2 = new URL(ow).hostname.replace(/^www\./, ''); if (h1 && h2 && (h1.indexOf(h2) >= 0 || h2.indexOf(h1) >= 0)) html += ' <span class="ok">✓ official domain</span>'; } } catch (e) {}
+                ind.innerHTML = html;
+            }).catch(function () { ind.textContent = ''; });
+        });
+    }
+
+    // ---------- B6: short-from-long ----------
+    var shortEl = byName('short_description');
+    if (shortEl) after(shortEl, toolBtn('⤵ long से short बनाओ', '', function () {
+        var l = longText(); if (!l) { toast('पहले long description भरें'); return; }
+        var s = l.split(/(?<=[.!?])\s/)[0] || l; shortEl.value = s.slice(0, 300); shortEl.dispatchEvent(new Event('input'));
+    }));
+
+    // ---------- B4/B5: AI grammar fix + translate (on long description) ----------
+    var rtTb = document.querySelector('.rt-tb');
+    if (rtTb) {
+        function aiRun(mode, label) {
+            var t = longText(); if (!t) { toast('description खाली है'); return; }
+            toast('AI ' + label + '…');
+            var body = new URLSearchParams(); body.append(C_NAME, C_VAL); body.append('mode', mode); body.append('text', t);
+            fetch(U.ai, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body })
+                .then(function (r) { return r.json(); }).then(function (res) {
+                    if (res.ok) { setLong(res.text); toast('✓ हो गया'); }
+                    else toast(res.need_key ? 'Settings में API key डालें' : (res.message || 'AI विफल'));
+                }).catch(function () { toast('AI विफल'); });
+        }
+        var g = document.createElement('button'); g.type = 'button'; g.title = 'Grammar/spelling ठीक करो (AI)'; g.textContent = '✦ Fix'; g.addEventListener('click', function () { aiRun('fix', 'सुधार'); });
+        var hi = document.createElement('button'); hi.type = 'button'; hi.title = 'हिंदी में अनुवाद (AI)'; hi.textContent = 'हिंदी'; hi.addEventListener('click', function () { aiRun('translate', 'अनुवाद'); });
+        var en = document.createElement('button'); en.type = 'button'; en.title = 'English में अनुवाद (AI)'; en.textContent = 'EN'; en.addEventListener('click', function () { aiRun('en', 'translate'); });
+        rtTb.appendChild(g); rtTb.appendChild(hi); rtTb.appendChild(en);
+    }
+
+    // ---------- B1: tag suggestions ----------
+    var tagEl = byName('tags');
+    if (tagEl) {
+        var tw = document.createElement('div'); tw.className = 'tool-chips'; (tagEl.closest('label') || tagEl.parentNode).appendChild(tw);
+        function suggestTags() {
+            var pool = ['free', 'offline', 'portable', 'lightweight'];
+            document.querySelectorAll('input[name="os[]"]:checked').forEach(function (cb) { pool.push((cb.parentNode.textContent || '').trim().toLowerCase()); });
+            var cat = $('f-cat'); if (cat && cat.selectedIndex > 0) pool.push(cat.options[cat.selectedIndex].text.toLowerCase());
+            (byName('name').value || '').toLowerCase().split(/\s+/).forEach(function (w) { if (w.length > 3) pool.push(w); });
+            var have = (tagEl.value || '').toLowerCase(), uniq = [];
+            pool.forEach(function (t) { t = t.trim(); if (t && uniq.indexOf(t) < 0 && have.indexOf(t) < 0) uniq.push(t); });
+            tw.innerHTML = '';
+            uniq.slice(0, 8).forEach(function (t) { var c = document.createElement('button'); c.type = 'button'; c.className = 'tool-chip'; c.textContent = '＋ ' + t; c.addEventListener('click', function () { tagEl.value = (tagEl.value ? tagEl.value.replace(/,\s*$/, '') + ', ' : '') + t; c.remove(); }); tw.appendChild(c); });
+        }
+        ['name', 'price_type'].forEach(function (n) { var e = byName(n); if (e) { e.addEventListener('input', suggestTags); e.addEventListener('change', suggestTags); } });
+        if ($('f-cat')) $('f-cat').addEventListener('change', suggestTags);
+        document.querySelectorAll('input[name="os[]"]').forEach(function (cb) { cb.addEventListener('change', suggestTags); });
+        suggestTags();
+    }
+
+    // ---------- C6: YouTube thumbnail ----------
+    var vidEl = byName('video_url');
+    if (vidEl) {
+        var vt = document.createElement('div'); vt.className = 'tool-thumb'; (vidEl.closest('label') || vidEl.parentNode).appendChild(vt);
+        vidEl.addEventListener('input', function () {
+            var m = (vidEl.value || '').match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([A-Za-z0-9_-]{11})/);
+            vt.innerHTML = m ? '<img src="https://img.youtube.com/vi/' + m[1] + '/mqdefault.jpg" alt="video thumbnail">' : '';
+        });
+    }
+
+    // ---------- E3: select all platforms ----------
+    var osBoxes = document.querySelectorAll('input[name="os[]"]');
+    if (osBoxes.length) {
+        var last = osBoxes[osBoxes.length - 1];
+        after(last.closest('.check') || last, toolBtn('☑ सभी platforms', 'सभी OS चुनें', function () {
+            osBoxes.forEach(function (cb) { cb.checked = true; cb.dispatchEvent(new Event('change')); });
+        }));
+    }
+
+    // ---------- C1 + C2 + C3: drag-drop / paste / website screenshot ----------
+    var shotEl = form.querySelector('input[name="screenshots[]"]');
+    var sUrls = $('f-shoturls');
+    if (shotEl) {
+        var dz = document.createElement('div'); dz.className = 'tool-dz'; dz.textContent = '⬇ तस्वीरें यहाँ खींचकर छोड़ें, या कहीं भी Ctrl+V से paste करें';
+        after(shotEl, dz);
+        var prev = document.createElement('div'); prev.className = 'tool-prev'; after(dz, prev);
+        after(prev, toolBtn('📸 website से screenshot लो', '', function () {
+            var w = ((byName('official_website') || {}).value || (byName('official_download_url') || {}).value || '').trim();
+            if (!/^https?:/i.test(w)) { toast('पहले official website भरें'); return; }
+            var u = 'https://s.wordpress.com/mshots/v1/' + encodeURIComponent(w) + '?w=1280';
+            sUrls.value = sUrls.value ? sUrls.value + '\n' + u : u;
+            var d = document.createElement('div'); d.className = 'tp'; d.innerHTML = '<img src="' + u + '" alt="">'; prev.appendChild(d); toast('✓ जोड़ा गया');
+        }));
+        var dt = new DataTransfer();
+        function render() {
+            [].slice.call(prev.querySelectorAll('.tp[data-file]')).forEach(function (n) { n.remove(); });
+            Array.prototype.forEach.call(dt.files, function (f, idx) {
+                var u = URL.createObjectURL(f); var d = document.createElement('div'); d.className = 'tp'; d.setAttribute('data-file', '1');
+                d.innerHTML = '<img src="' + u + '"><span class="rm">✕</span>';
+                d.querySelector('.rm').addEventListener('click', function () { var nd = new DataTransfer(); Array.prototype.forEach.call(dt.files, function (ff, j) { if (j !== idx) nd.items.add(ff); }); dt = nd; shotEl.files = dt.files; render(); });
+                prev.insertBefore(d, prev.firstChild);
+            });
+        }
+        function addFiles(files) { Array.prototype.forEach.call(files, function (f) { if (/^image\//.test(f.type)) dt.items.add(f); }); shotEl.files = dt.files; render(); }
+        ['dragover', 'dragenter'].forEach(function (ev) { dz.addEventListener(ev, function (e) { e.preventDefault(); dz.classList.add('over'); }); });
+        ['dragleave', 'drop'].forEach(function (ev) { dz.addEventListener(ev, function (e) { e.preventDefault(); dz.classList.remove('over'); }); });
+        dz.addEventListener('drop', function (e) { addFiles(e.dataTransfer.files); });
+        dz.addEventListener('click', function () { shotEl.click(); });
+        shotEl.addEventListener('change', function () { if (shotEl.files && shotEl.files.length && shotEl.files !== dt.files) addFiles(shotEl.files); });
+        document.addEventListener('paste', function (e) {
+            if (!e.clipboardData) return; var imgs = [];
+            Array.prototype.forEach.call(e.clipboardData.items, function (it) { if (it.type && it.type.indexOf('image') === 0) { var f = it.getAsFile(); if (f) imgs.push(f); } });
+            if (imgs.length) { addFiles(imgs); toast('✓ screenshot paste हुआ'); }
+        });
+    }
+
+    // ---------- E1: phone preview toggle ----------
+    var pvCard = document.querySelector('.pv-card');
+    if (pvCard) after(pvCard, toolBtn('📱 मोबाइल में देखें', '', function () { pvCard.classList.toggle('phone-mode'); this.textContent = pvCard.classList.contains('phone-mode') ? '🖥️ सामान्य' : '📱 मोबाइल में देखें'; }));
+
+    // ---------- B2 + B3 + D3: SEO/readability meter + completeness checklist ----------
+    var chk = document.createElement('div'); chk.className = 'tool-check';
+    chk.innerHTML = '<div class="ch-h"><span>📋 Post तैयारी</span><span id="chk-pct">0%</span></div><div class="cbar"><i id="chk-bar" style="width:0"></i></div><div class="miss" id="chk-miss"></div><div class="tool-meter"><span>SEO: <b id="chk-seo">—</b></span><span>पढ़ने में: <b id="chk-read">—</b></span></div>';
+    form.insertBefore(chk, form.firstChild.nextSibling);
+    function fileChosen(n) { var e = form.querySelector('input[name="' + n + '"]'); return e && e.files && e.files.length; }
+    function recompute() {
+        var items = [
+            ['नाम', (byName('name').value || '').trim() !== ''],
+            ['Download/Website', (((byName('official_download_url') || {}).value || '') + ((byName('official_website') || {}).value || '')).trim() !== ''],
+            ['Short desc', (byName('short_description').value || '').trim() !== ''],
+            ['Long desc', longText().length > 20],
+            ['Logo', ((byName('logo') || {}).value || '').trim() !== '' || fileChosen('logo_file')],
+            ['Category', $('f-cat') && $('f-cat').value !== ''],
+            ['OS', !!form.querySelector('input[name="os[]"]:checked')],
+            ['Version', (byName('version') && byName('version').value.trim() !== '')]
+        ];
+        var done = items.filter(function (i) { return i[1]; }).length, pct = Math.round(done / items.length * 100);
+        $('chk-pct').textContent = pct + '%'; $('chk-bar').style.width = pct + '%';
+        var miss = $('chk-miss'); miss.innerHTML = '';
+        items.filter(function (i) { return !i[1]; }).forEach(function (i) { var s = document.createElement('span'); s.textContent = '✕ ' + i[0]; miss.appendChild(s); });
+        // SEO
+        var title = (byName('name').value || '').length, sd = (byName('short_description').value || '').length;
+        var seo = 0; if (title >= 3 && title <= 60) seo += 40; else if (title) seo += 20;
+        if (sd >= 50 && sd <= 160) seo += 40; else if (sd) seo += 20;
+        if (longText().length > 200) seo += 20;
+        $('chk-seo').textContent = seo + '/100';
+        // readability
+        var lt = longText(); var words = lt ? lt.split(/\s+/).length : 0; var sents = lt ? (lt.split(/[.!?]+/).filter(Boolean).length || 1) : 1;
+        var wps = words / sents; $('chk-read').textContent = !lt ? '—' : (wps < 18 ? 'आसान' : wps < 26 ? 'ठीक' : 'कठिन');
+    }
+    form.addEventListener('input', recompute); form.addEventListener('change', recompute);
+    var edEl = $('rt-ed'); if (edEl) edEl.addEventListener('input', recompute);
+    recompute();
+
+    // ---------- A4: autosave draft (create mode only) ----------
+    if (!isEdit) {
+        var KEY = 'addsw_draft_v1';
+        function collect() { var o = {}; form.querySelectorAll('[name]').forEach(function (el) { if (el.type === 'file' || el.name === '_csrf' || el.name === 'screenshot_urls') return; if (el.type === 'checkbox') o['cb:' + el.name + ':' + el.value] = el.checked ? 1 : 0; else o[el.name] = el.value; }); o['__long'] = longText(); return o; }
+        function applyDraft(o) { Object.keys(o).forEach(function (k) { if (k === '__long') { if (longText().length < 2) setLong(o[k]); return; } if (k.indexOf('cb:') === 0) { var p = k.split(':'); var cb = form.querySelector('[name="' + p[1] + '"][value="' + p[2] + '"]'); if (cb) cb.checked = !!o[k]; } else { var el = byName(k); if (el && (el.value || '') === '') el.value = o[k]; } }); recompute(); if (typeof updatePreview === 'function') updatePreview(); }
+        var saved = null; try { saved = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) {}
+        if (saved && (saved.name || saved.__long)) {
+            var rb = document.createElement('div'); rb.className = 'tool-restore';
+            rb.innerHTML = '<span>📝 पिछला अधूरा draft मिला।</span>';
+            var yes = toolBtn('बहाल करें', '', function () { applyDraft(saved); rb.remove(); });
+            var no = toolBtn('हटाएँ', '', function () { try { localStorage.removeItem(KEY); } catch (e) {} rb.remove(); });
+            yes.style.marginTop = '0'; no.style.marginTop = '0'; rb.appendChild(yes); rb.appendChild(no);
+            form.insertBefore(rb, form.firstChild.nextSibling);
+        }
+        var sT; form.addEventListener('input', function () { clearTimeout(sT); sT = setTimeout(function () { try { localStorage.setItem(KEY, JSON.stringify(collect())); toast('💾 सेव'); } catch (e) {} }, 800); });
+        if (edEl) edEl.addEventListener('input', function () { clearTimeout(sT); sT = setTimeout(function () { try { localStorage.setItem(KEY, JSON.stringify(collect())); } catch (e) {} }, 800); });
+        form.addEventListener('submit', function () { try { localStorage.removeItem(KEY); } catch (e) {} });
+    }
+
+    // ---------- A6 / E4: templates ----------
+    var TKEY = 'addsw_templates_v1';
+    function templates() { try { return JSON.parse(localStorage.getItem(TKEY) || '{}'); } catch (e) { return {}; } }
+    var tpl = document.createElement('div'); tpl.className = 'tool-tpl';
+    var sel = document.createElement('select'); sel.innerHTML = '<option value="">📂 Template लोड करें…</option>';
+    Object.keys(templates()).forEach(function (n) { var o = document.createElement('option'); o.value = n; o.textContent = n; sel.appendChild(o); });
+    sel.addEventListener('change', function () { var t = templates()[sel.value]; if (!t) return; Object.keys(t).forEach(function (k) { if (k === '__long') { setLong(t[k]); return; } if (k.indexOf('cb:') === 0) { var p = k.split(':'); var cb = form.querySelector('[name="' + p[1] + '"][value="' + p[2] + '"]'); if (cb) cb.checked = !!t[k]; } else { var el = byName(k); if (el) el.value = t[k]; } }); recompute(); if (typeof updatePreview === 'function') updatePreview(); toast('✓ template लगा'); });
+    var saveTpl = toolBtn('💾 Template सेव करो', 'मौजूदा form को template बनाओ', function () {
+        var n = prompt('Template का नाम:'); if (!n) return; var all = templates();
+        var o = {}; form.querySelectorAll('[name]').forEach(function (el) { if (el.type === 'file' || el.name === '_csrf' || el.name === 'name' || el.name === 'screenshot_urls') return; if (el.type === 'checkbox') o['cb:' + el.name + ':' + el.value] = el.checked ? 1 : 0; else o[el.name] = el.value; }); o['__long'] = longText();
+        all[n] = o; try { localStorage.setItem(TKEY, JSON.stringify(all)); } catch (e) {} var op = document.createElement('option'); op.value = n; op.textContent = n; sel.appendChild(op); toast('✓ template सेव');
+    });
+    saveTpl.style.marginTop = '0'; tpl.appendChild(sel); tpl.appendChild(saveTpl);
+    form.insertBefore(tpl, form.firstChild.nextSibling);
 })();
 </script>

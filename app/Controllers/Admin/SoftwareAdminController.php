@@ -198,6 +198,26 @@ final class SoftwareAdminController extends AdminController
         }
     }
 
+    /** Save screenshot URLs (e.g. an auto website screenshot) for a software id. */
+    private function saveScreenshotUrls(int $id): void
+    {
+        $raw = (string) $this->request->input('screenshot_urls', '');
+        $urls = array_values(array_filter(array_map('trim', preg_split('/[\r\n,]+/', $raw) ?: [])));
+        if (!$urls) {
+            return;
+        }
+        $order = (int) Database::scalar('SELECT COALESCE(MAX(sort_order),0) FROM software_screenshots WHERE software_id = :s', ['s' => $id]);
+        foreach (array_slice($urls, 0, 12) as $u) {
+            if (!preg_match('~^https?://~i', $u)) {
+                continue;
+            }
+            if (Database::scalar('SELECT id FROM software_screenshots WHERE software_id = :s AND url = :u', ['s' => $id, 'u' => $u])) {
+                continue;
+            }
+            Database::run('INSERT INTO software_screenshots (software_id, url, sort_order) VALUES (:s, :u, :o)', ['s' => $id, 'u' => $u, 'o' => ++$order]);
+        }
+    }
+
     /** Save features / pros / cons (one item per line) for a software id. */
     private function saveFeatures(int $id): void
     {
@@ -759,6 +779,80 @@ final class SoftwareAdminController extends AdminController
         ]);
     }
 
+    /** GET /admin/software/dupe-check?name=… — is this software already on the site? (A3) */
+    public function dupeCheck(array $args = []): never
+    {
+        $this->requirePermission('software.manage');
+        $name = trim($this->request->str('name'));
+        if (mb_strlen($name) < 2) {
+            $this->json(['exists' => false]);
+        }
+        \App\Services\Dedupe::ensureSchema();
+        $key = \App\Services\Dedupe::key($name);
+        $row = $key !== '' ? Database::first('SELECT id, name FROM software WHERE dedupe_key = :k LIMIT 1', ['k' => $key]) : null;
+        $this->json($row ? ['exists' => true, 'id' => (int) $row['id'], 'name' => $row['name']] : ['exists' => false]);
+    }
+
+    /** GET /admin/software/link-check?url=… — is a download link alive? (D1) */
+    public function linkCheck(array $args = []): never
+    {
+        $this->requirePermission('software.manage');
+        $url = trim($this->request->str('url'));
+        if (!preg_match('~^https?://~i', $url)) {
+            $this->json(['ok' => false, 'status' => 0, 'message' => 'Enter a full URL.']);
+        }
+        $resp = \App\Support\Http::get($url, ['Accept: */*'], 10);
+        $status = (int) ($resp['status'] ?? 0);
+        $this->json(['ok' => $status >= 200 && $status < 400, 'status' => $status]);
+    }
+
+    /** GET /admin/software/version-fetch?url=… — pull latest version/size from the official page. (D4) */
+    public function versionFetch(array $args = []): never
+    {
+        $this->requirePermission('software.manage');
+        $url = trim($this->request->str('url'));
+        if ($url === '') {
+            $this->json(['ok' => false, 'message' => 'Add the official website / download URL first.']);
+        }
+        $page = \App\Services\Publisher::fetch($url);
+        if ($page === null) {
+            $this->json(['ok' => false, 'message' => 'Could not read that page.']);
+        }
+        $d = \App\Services\SoftwareLookup::enrichFromPage(['official_website' => $url], $page['html'], $page['url']);
+        $this->json([
+            'ok'           => !empty($d['version']) || !empty($d['file_size']) || !empty($d['release_date']),
+            'version'      => $d['version'] ?? '',
+            'file_size'    => $d['file_size'] ?? '',
+            'release_date' => $d['release_date'] ?? '',
+            'message'      => 'No version found on that page.',
+        ]);
+    }
+
+    /** POST /admin/software/ai-assist — grammar fix / translate / rewrite one text field. (B4/B5) */
+    public function aiAssist(array $args = []): never
+    {
+        $this->requirePermission('software.manage');
+        Csrf::check($this->request);
+        if (!\App\Services\AiEnhancer::isConfigured()) {
+            $this->json(['ok' => false, 'need_key' => true, 'message' => 'Add your Anthropic API key in Settings to use this.']);
+        }
+        $mode = $this->request->str('mode');
+        $text = trim((string) $this->request->input('text', ''));
+        if ($text === '') {
+            $this->json(['ok' => false, 'message' => 'Nothing to process.']);
+        }
+        $instr = [
+            'fix'       => 'Fix spelling, grammar and punctuation. Keep the meaning and language exactly the same. Return only the corrected text.',
+            'translate' => 'Translate the text to Hindi (Devanagari). Keep product names in English. Return only the translation.',
+            'en'        => 'Translate the text to clear English. Keep product names as-is. Return only the translation.',
+        ][$mode] ?? null;
+        if ($instr === null) {
+            $this->json(['ok' => false, 'message' => 'Unknown action.']);
+        }
+        $out = \App\Services\AiEnhancer::transform($instr, mb_substr($text, 0, 6000));
+        $this->json($out['ok'] ? ['ok' => true, 'text' => $out['text']] : ['ok' => false, 'message' => $out['message'] ?? 'AI failed.']);
+    }
+
     /** POST /admin/software/{id}/go-live — publish a prepared draft in one click (JSON). */
     public function goLive(array $args = []): never
     {
@@ -935,6 +1029,7 @@ final class SoftwareAdminController extends AdminController
 
         // Screenshots, features/pros/cons, and tags.
         try { $this->saveScreenshots($id); } catch (\Throwable $e) {}
+        try { $this->saveScreenshotUrls($id); } catch (\Throwable $e) {}
         try { $this->saveFeatures($id); } catch (\Throwable $e) {}
         try { $this->saveTags($id); } catch (\Throwable $e) {}
 
@@ -1148,6 +1243,7 @@ final class SoftwareAdminController extends AdminController
             }
         }
         try { $this->saveScreenshots($id); } catch (\Throwable $e) {}
+        try { $this->saveScreenshotUrls($id); } catch (\Throwable $e) {}
         try { $this->saveFeatures($id); } catch (\Throwable $e) {}
         try { $this->saveTags($id); } catch (\Throwable $e) {}
 

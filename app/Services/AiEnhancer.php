@@ -185,6 +185,43 @@ final class AiEnhancer
     }
 
     /**
+     * Run a single instruction over a piece of text (grammar fix, translate,
+     * rewrite) and return the transformed plain text. Used by the Add form's
+     * inline AI helpers.
+     *
+     * @return array{ok:bool, text?:string, message?:string}
+     */
+    public static function transform(string $instruction, string $text): array
+    {
+        $key = self::apiKey();
+        if ($key === null) {
+            return ['ok' => false, 'message' => 'No Anthropic API key configured.'];
+        }
+        $resp = Http::postJson(self::ENDPOINT, [
+            'model'      => self::model(),
+            'max_tokens' => 1500,
+            'system'     => 'You are a careful text editor. ' . $instruction
+                . ' Do not add commentary, quotes or explanations — output only the resulting text.',
+            'messages'   => [['role' => 'user', 'content' => $text]],
+        ], [
+            'x-api-key: ' . $key,
+            'anthropic-version: ' . self::API_VERSION,
+        ]);
+        if ($resp['status'] !== 200) {
+            return ['ok' => false, 'message' => self::apiError($resp)];
+        }
+        $data = json_decode($resp['body'], true);
+        $out = '';
+        foreach ($data['content'] ?? [] as $block) {
+            if (($block['type'] ?? '') === 'text') {
+                $out .= $block['text'];
+            }
+        }
+        $out = trim($out);
+        return $out !== '' ? ['ok' => true, 'text' => $out] : ['ok' => false, 'message' => 'Empty AI response.'];
+    }
+
+    /**
      * Enhance a batch of not-yet-enhanced published software.
      *
      * @return array{processed:int, enhanced:int, failed:int, message:string}
