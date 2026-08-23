@@ -1249,11 +1249,50 @@ $action = $action ?? base_url('/admin/software/new');
 })();
 </script>
 
+<style>
+.lp-modal{position:fixed;inset:0;background:rgba(8,10,16,.66);display:flex;align-items:center;justify-content:center;z-index:1300;padding:14px}
+.lp-box{background:var(--surface);border:1px solid var(--border);border-radius:14px;width:100%;max-width:940px;height:88vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 70px rgba(0,0,0,.5)}
+.lp-head{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--border)}
+.lp-url{flex:1;min-width:0;font-size:.8rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:ui-monospace,monospace}
+.lp-body{flex:1;position:relative;background:#fff}
+.lp-body iframe{width:100%;height:100%;border:0}
+.lp-note{position:absolute;left:0;right:0;bottom:0;background:var(--surface-2);color:var(--muted);font-size:.78rem;padding:7px 12px;border-top:1px solid var(--border)}
+</style>
 <script>
 (function () {
     var form = document.querySelector('.admin-form'); if (!form) return;
     function norm(u) { u = (u || '').trim(); if (!u) return ''; return /^https?:\/\//i.test(u) ? u : 'https://' + u; }
     function tool(label, title, fn) { var b = document.createElement('button'); b.type = 'button'; b.className = 'mini-tool'; b.textContent = label; b.title = title; b.style.marginTop = '6px'; b.addEventListener('click', fn); return b; }
+
+    // Shared in-page preview modal (iframe) — stays inside this page, no new tab.
+    var modal = null, frame = null, urlLbl = null, openLink = null;
+    function buildModal() {
+        modal = document.createElement('div'); modal.className = 'lp-modal'; modal.style.display = 'none';
+        modal.innerHTML =
+            '<div class="lp-box">' +
+              '<div class="lp-head">' +
+                '<strong style="font-size:.9rem">👁 Preview</strong>' +
+                '<span class="lp-url"></span>' +
+                '<a class="btn btn-sm btn-ghost lp-open" target="_blank" rel="noopener">↗ New tab</a>' +
+                '<button type="button" class="btn btn-sm btn-ghost lp-close">✕ बंद</button>' +
+              '</div>' +
+              '<div class="lp-body">' +
+                '<iframe referrerpolicy="no-referrer"></iframe>' +
+                '<div class="lp-note">अगर पेज खाली दिखे तो यह साइट preview रोकती है — ऊपर <b>↗ New tab</b> से खोलें.</div>' +
+              '</div>' +
+            '</div>';
+        document.body.appendChild(modal);
+        frame = modal.querySelector('iframe'); urlLbl = modal.querySelector('.lp-url'); openLink = modal.querySelector('.lp-open');
+        function close() { modal.style.display = 'none'; frame.src = 'about:blank'; }
+        modal.querySelector('.lp-close').addEventListener('click', close);
+        modal.addEventListener('click', function (e) { if (e.target === modal) close(); });
+        window.addEventListener('keydown', function (e) { if (e.key === 'Escape' && modal.style.display !== 'none') close(); });
+    }
+    function preview(u) {
+        if (!modal) buildModal();
+        urlLbl.textContent = u; openLink.href = u; frame.src = u; modal.style.display = 'flex';
+    }
+
     ['official_website', 'developer_website', 'official_download_url'].forEach(function (name) {
         var el = form.querySelector('[name="' + name + '"]'); if (!el) return;
         var row = document.createElement('div'); row.className = 'tool-row';
@@ -1261,12 +1300,9 @@ $action = $action ?? base_url('/admin/software/new');
             var u = norm(el.value); if (!u) { el.focus(); return; }
             window.open(u, '_blank', 'noopener,noreferrer');
         }));
-        row.appendChild(tool('👁 Preview', 'popup में देखें', function () {
+        row.appendChild(tool('👁 Preview', 'इसी पेज पर popup में देखें', function () {
             var u = norm(el.value); if (!u) { el.focus(); return; }
-            var w = Math.min(1024, screen.width - 80), h = Math.min(720, screen.height - 120);
-            var x = (screen.width - w) / 2, y = (screen.height - h) / 2;
-            var win = window.open(u, 'sw_preview', 'width=' + w + ',height=' + h + ',left=' + x + ',top=' + y + ',scrollbars=yes,resizable=yes');
-            if (!win) alert('Popup ब्लॉक हो गया — browser में इस साइट के लिए popup allow करें, या New tab इस्तेमाल करें।');
+            preview(u);
         }));
         (el.closest('label') || el.parentNode).appendChild(row);
     });
