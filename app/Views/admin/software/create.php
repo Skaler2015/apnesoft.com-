@@ -1,19 +1,60 @@
-<?php use App\Core\Csrf; ?>
+<?php
+use App\Core\Csrf;
+$isEdit = ($mode ?? 'create') === 'edit';
+$s = $s ?? [];
+$raw = $isEdit ? $s : ($_POST ?? []);
+$fv = static function (string $k, string $d = '') use ($raw) {
+    $v = $raw[$k] ?? $d;
+    return is_scalar($v) ? (string) $v : $d;
+};
+$action = $action ?? base_url('/admin/software/new');
+?>
+<?php if ($isEdit && ($_GET['published'] ?? '') === '1'): ?>
+<div id="pubModal" style="position:fixed;inset:0;background:rgba(10,12,20,.6);display:flex;align-items:center;justify-content:center;z-index:1000;padding:20px" onclick="if(event.target===this)this.remove()">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;max-width:720px;width:100%;max-height:90vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.4)">
+        <div style="display:flex;align-items:center;gap:10px;padding:16px 20px;border-bottom:1px solid var(--border)">
+            <strong style="font-size:1.05rem">🎉 Published — here's how it looks</strong><span style="flex:1"></span>
+            <button onclick="document.getElementById('pubModal').remove()" class="btn btn-sm btn-ghost">✕ Close</button>
+        </div>
+        <iframe src="<?= e(base_url('/software/' . ($s['slug'] ?? ''))) ?>" title="Preview" loading="lazy" style="width:100%;height:60vh;border:0;background:#fff"></iframe>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;padding:16px 20px;border-top:1px solid var(--border)">
+            <a class="btn btn-primary" href="<?= e(base_url('/software/' . ($s['slug'] ?? ''))) ?>" target="_blank">Open live page ↗</a>
+            <a class="btn btn-ghost" href="<?= e(base_url('/admin/software/new')) ?>">➕ Add another</a>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
 <div class="admin-edit-head">
     <a class="btn btn-sm btn-ghost" href="<?= e(base_url('/admin/software')) ?>">← Back</a>
-    <h2 style="margin:0 0 0 4px">➕ Publish new software</h2>
+    <h2 style="margin:0 0 0 4px"><?= $isEdit ? '✏️ Edit software' : '➕ Publish new software' ?></h2>
+    <?php if ($isEdit): ?>
+        <a class="btn btn-sm btn-ghost" href="<?= e(base_url('/software/' . ($s['slug'] ?? ''))) ?>" target="_blank">View ↗</a>
+        <form method="post" action="<?= e(base_url('/admin/software/' . ($s['id'] ?? 0) . '/enhance')) ?>" class="inline" onsubmit="this.querySelector('button').disabled=true;this.querySelector('button').textContent='✨ Enhancing…';">
+            <?= Csrf::field() ?><button class="btn btn-sm btn-primary" title="Rewrite description &amp; features from real data using AI">✨ Enhance with AI</button>
+        </form>
+        <span style="flex:1"></span>
+        <form method="post" action="<?= e(base_url('/admin/software/' . ($s['id'] ?? 0) . '/action')) ?>" class="inline" onsubmit="return confirm('Delete this software permanently? This cannot be undone.')">
+            <?= Csrf::field() ?><input type="hidden" name="action" value="delete"><button class="btn btn-sm btn-ghost" style="color:var(--red)">Delete</button>
+        </form>
+    <?php endif; ?>
 </div>
+<?php if (!$isEdit): ?>
 <p class="muted" style="margin:-4px 0 10px">Fill the details and choose <strong>Published</strong> to make it live immediately. Only add official / authorized download links.</p>
-<?php if (!empty($panelLabel)): ?>
-    <div class="flash flash-ok" style="margin:0 0 14px">📌 This will publish to your <strong><?= e($panelLabel) ?></strong> site only. (Tick more operating systems below only if the app is truly cross-platform.)</div>
 <?php endif; ?>
-<form method="post" action="<?= e(base_url('/admin/software/new')) ?>" class="admin-form" enctype="multipart/form-data">
+<?php if (!empty($panelLabel)): ?>
+    <div class="flash flash-ok" style="margin:0 0 14px">📌 This will publish to your <strong><?= e($panelLabel) ?></strong> site<?= $isEdit ? '' : ' only' ?>. (Tick more operating systems below only if the app is truly cross-platform.)</div>
+<?php endif; ?>
+<form method="post" action="<?= e($action) ?>" class="admin-form" enctype="multipart/form-data">
     <?= Csrf::field() ?>
-    <div class="form-grid">
+    <div class="form-cards">
+
+    <section class="form-card">
+        <div class="fc-h"><span class="fc-ic">📝</span><div><h3>मुख्य जानकारी</h3><p>नाम भरें — बाकी details Auto-fill / Import से अपने-आप</p></div></div>
+        <div class="form-grid">
         <div class="col-2">
             <label style="margin-bottom:6px">Name *</label>
             <div style="display:flex;gap:8px;flex-wrap:wrap">
-                <input name="name" id="f-name" value="<?= old('name') ?>" required autofocus autocomplete="off" list="name-suggest" style="flex:1;min-width:200px">
+                <input name="name" id="f-name" value="<?= e($fv('name')) ?>" required autofocus autocomplete="off" list="name-suggest" style="flex:1;min-width:200px">
                 <datalist id="name-suggest"></datalist>
                 <button type="button" id="ai-autofill" class="btn btn-ghost">🔎 Auto-fill</button>
                 <button type="button" id="ai-fill" class="btn btn-primary" title="Fill everything — links, long description, features, pros/cons, tags — using AI">✨ AI fill (full)</button>
@@ -51,12 +92,17 @@
             </div>
         </div>
 
-        <label>Developer<input name="developer_name" id="f-dev" value="<?= old('developer_name') ?>"></label>
-        <label>Version<input name="version" value="<?= old('version') ?>" placeholder="e.g. 1.2.3"></label>
-        <label>File size<input name="file_size" id="f-size" value="<?= old('file_size') ?>" placeholder="e.g. 45 MB"></label>
+        <label>Developer<input name="developer_name" id="f-dev" value="<?= e($fv('developer_name')) ?>"></label>
+        <label>Version<input name="version" value="<?= e($fv('version')) ?>" placeholder="e.g. 1.2.3"></label>
+        <label>File size<input name="file_size" id="f-size" value="<?= e($fv('file_size')) ?>" placeholder="e.g. 45 MB"></label>
+        </div>
+    </section>
 
+    <section class="form-card">
+        <div class="fc-h"><span class="fc-ic">🔗</span><div><h3>Links, दाम &amp; category</h3><p>official website/download, price, category, OS versions</p></div></div>
+        <div class="form-grid">
         <?php
-            $oldOsv = isset($_POST['os_versions']) && is_array($_POST['os_versions']) ? $_POST['os_versions'] : [];
+            $oldOsv = $checkedOsv ?? (isset($_POST['os_versions']) && is_array($_POST['os_versions']) ? $_POST['os_versions'] : []);
             $osGroupOrder = ['Windows', 'macOS', 'iOS / iPadOS', 'Android', 'Linux', 'Other'];
             $osGroups = array_fill_keys($osGroupOrder, []);
             $osGroupOf = static function (string $v): string {
@@ -104,16 +150,16 @@
                 </div>
             </div>
         </div>
-        <label>Official website<input name="official_website" value="<?= old('official_website') ?>" placeholder="https://…"></label>
-        <label>Developer website<input name="developer_website" value="<?= old('developer_website') ?>" placeholder="https://…"></label>
-        <label class="col-2">Official download URL<input name="official_download_url" value="<?= old('official_download_url') ?>" placeholder="https://… (official / authorized source only)"></label>
+        <label>Official website<input name="official_website" value="<?= e($fv('official_website')) ?>" placeholder="https://…"></label>
+        <label>Developer website<input name="developer_website" value="<?= e($fv('developer_website')) ?>" placeholder="https://…"></label>
+        <label class="col-2">Official download URL<input name="official_download_url" value="<?= e($fv('official_download_url')) ?>" placeholder="https://… (official / authorized source only)"></label>
         <div>
             <label style="margin-bottom:6px">Price type</label>
             <div style="display:flex;gap:8px">
                 <select name="price_type" id="f-price" style="flex:1">
                     <option value="">—</option>
                     <?php foreach (($priceTypes ?? []) as $pv => $pl): ?>
-                        <option value="<?= e($pv) ?>" <?= old('price_type') === $pv ? 'selected' : '' ?>><?= e($pl) ?></option>
+                        <option value="<?= e($pv) ?>" <?= $fv('price_type') === $pv ? 'selected' : '' ?>><?= e($pl) ?></option>
                     <?php endforeach; ?>
                 </select>
                 <button type="button" id="price-add-btn" class="btn btn-ghost" title="Add a new price type">+ New</button>
@@ -125,20 +171,29 @@
                 <select name="category_id" id="f-cat" style="flex:1">
                     <option value="">—</option>
                     <?php foreach ($categories as $c): ?>
-                        <option value="<?= (int) $c['id'] ?>"><?= e($c['name']) ?></option>
+                        <option value="<?= (int) $c['id'] ?>" <?= (int) $fv('category_id') === (int) $c['id'] ? 'selected' : '' ?>><?= e($c['name']) ?></option>
                     <?php endforeach; ?>
                 </select>
                 <button type="button" id="cat-add-btn" class="btn btn-ghost" title="Add a new category">+ New</button>
             </div>
         </div>
-        <label>Release date<input name="release_date" type="date" value="<?= old('release_date') ?>"></label>
+        <label>Release date<input name="release_date" type="date" value="<?= e($fv('release_date')) ?>"></label>
+        </div>
+    </section>
 
+    <section class="form-card">
+        <div class="fc-h"><span class="fc-ic">🖥️</span><div><h3>Platform &amp; status</h3><p>कौन-से OS, कब live हो, auto-update</p></div></div>
+        <div class="form-grid">
         <div class="col-2">
             <label style="margin-bottom:6px">Operating systems</label>
             <div style="display:flex;gap:16px;flex-wrap:wrap">
-                <?php $preOs = $preOs ?? 0; foreach ($oss as $os): ?>
+                <?php
+                    $preOs = $preOs ?? 0;
+                    $checkedOsIds = $checkedOsIds ?? [(int) $preOs];
+                    foreach ($oss as $os):
+                ?>
                     <label class="check" style="font-weight:400">
-                        <input type="checkbox" name="os[]" value="<?= (int) $os['id'] ?>" <?= (int) $os['id'] === (int) $preOs ? 'checked' : '' ?>> <?= e($os['name']) ?>
+                        <input type="checkbox" name="os[]" value="<?= (int) $os['id'] ?>" <?= in_array((int) $os['id'], array_map('intval', $checkedOsIds), true) ? 'checked' : '' ?>> <?= e($os['name']) ?>
                     </label>
                 <?php endforeach; ?>
             </div>
@@ -146,21 +201,32 @@
 
         <label>Status
             <select name="status">
-                <option value="published">Published (live now)</option>
-                <option value="review">Review (pending)</option>
-                <option value="draft">Draft</option>
+                <?php
+                    $curStatus = $fv('status', 'published');
+                    $statusOpts = $isEdit
+                        ? ['published' => 'Published', 'review' => 'Review', 'draft' => 'Draft', 'rejected' => 'Rejected', 'disabled' => 'Disabled']
+                        : ['published' => 'Published (live now)', 'review' => 'Review (pending)', 'draft' => 'Draft'];
+                    foreach ($statusOpts as $sv => $sl):
+                ?>
+                    <option value="<?= $sv ?>" <?= $curStatus === $sv ? 'selected' : '' ?>><?= $sl ?></option>
+                <?php endforeach; ?>
             </select>
         </label>
         <label style="flex-direction:row;align-items:center;gap:8px;font-weight:400">
-            <input type="checkbox" name="auto_update" value="1" style="width:auto"> 🔁 Auto-update version when a newer one is found
+            <input type="checkbox" name="auto_update" value="1" style="width:auto" <?= $fv('auto_update') == '1' ? 'checked' : '' ?>> 🔁 Auto-update version when a newer one is found
         </label>
+        </div>
+    </section>
 
+    <section class="form-card">
+        <div class="fc-h"><span class="fc-ic">🖼️</span><div><h3>Media</h3><p>logo, screenshots और demo video</p></div></div>
+        <div class="form-grid">
         <!-- Logo: URL or upload -->
-        <label>Logo URL<input name="logo" id="f-logo" value="<?= old('logo') ?>" placeholder="https://… (optional)"></label>
+        <label>Logo URL<input name="logo" id="f-logo" value="<?= e($fv('logo')) ?>" placeholder="https://… (optional)"></label>
         <label>Logo — upload image<input type="file" name="logo_file" accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif"></label>
 
         <!-- Demo video -->
-        <label class="col-2">🎥 Demo / YouTube video URL<input name="video_url" value="<?= old('video_url') ?>" placeholder="https://youtube.com/watch?v=… (optional)"></label>
+        <label class="col-2">🎥 Demo / YouTube video URL<input name="video_url" value="<?= e($fv('video_url')) ?>" placeholder="https://youtube.com/watch?v=… (optional)"></label>
 
         <!-- Screenshots -->
         <div class="col-2">
@@ -168,8 +234,13 @@
             <input type="file" name="screenshots[]" accept="image/png,image/jpeg,image/webp" multiple>
             <div class="muted small" style="margin-top:4px">These show as a gallery on the software page.</div>
         </div>
+        </div>
+    </section>
 
-        <label class="col-2">Short description<input name="short_description" id="f-short" value="<?= old('short_description') ?>" maxlength="320" placeholder="One-line summary"></label>
+    <section class="form-card">
+        <div class="fc-h"><span class="fc-ic">✍️</span><div><h3>Content</h3><p>description, features, pros/cons, tags</p></div></div>
+        <div class="form-grid">
+        <label class="col-2">Short description<input name="short_description" id="f-short" value="<?= e($fv('short_description')) ?>" maxlength="320" placeholder="One-line summary"></label>
         <div class="col-2">
             <label style="margin-bottom:6px">Long description</label>
             <div class="rt-tb">
@@ -179,24 +250,32 @@
                 <button type="button" data-cmd="formatBlock" data-val="h3" title="Heading">H</button>
                 <button type="button" data-cmd="createLink" title="Link">🔗</button>
             </div>
-            <div id="rt-ed" class="rt-ed" contenteditable="true"><?= sanitize_rich((string) old('long_description')) ?></div>
-            <textarea name="long_description" id="rt-src" hidden><?= old('long_description') ?></textarea>
+            <div id="rt-ed" class="rt-ed" contenteditable="true"><?= sanitize_rich((string) $fv('long_description')) ?></div>
+            <textarea name="long_description" id="rt-src" hidden><?= e($fv('long_description')) ?></textarea>
         </div>
 
         <!-- Features / Pros / Cons -->
-        <label class="col-2">⭐ Features <span class="muted small">(one per line)</span><textarea name="features" rows="4" placeholder="Fast downloads&#10;Auto captions&#10;Works offline"><?= old('features') ?></textarea></label>
-        <label>✓ Pros <span class="muted small">(one per line)</span><textarea name="pros" rows="4" placeholder="Easy to use&#10;Free"><?= old('pros') ?></textarea></label>
-        <label>✕ Cons <span class="muted small">(one per line)</span><textarea name="cons" rows="4" placeholder="Shows ads"><?= old('cons') ?></textarea></label>
+        <label class="col-2">⭐ Features <span class="muted small">(one per line)</span><textarea name="features" rows="4" placeholder="Fast downloads&#10;Auto captions&#10;Works offline"><?= e($featuresText ?? '') ?></textarea></label>
+        <label>✓ Pros <span class="muted small">(one per line)</span><textarea name="pros" rows="4" placeholder="Easy to use&#10;Free"><?= e($prosText ?? '') ?></textarea></label>
+        <label>✕ Cons <span class="muted small">(one per line)</span><textarea name="cons" rows="4" placeholder="Shows ads"><?= e($consText ?? '') ?></textarea></label>
 
         <!-- Tags -->
-        <label class="col-2">🏷️ Tags <span class="muted small">(comma separated)</span><input name="tags" value="<?= old('tags') ?>" placeholder="video editor, free, offline"></label>
+        <label class="col-2">🏷️ Tags <span class="muted small">(comma separated)</span><input name="tags" value="<?= e($tagsText ?? '') ?>" placeholder="video editor, free, offline"></label>
 
-        <label class="col-2">Minimum requirements<textarea name="minimum_requirements" rows="3"><?= old('minimum_requirements') ?></textarea></label>
-    </div>
+        <label class="col-2">Minimum requirements<textarea name="minimum_requirements" rows="3"><?= e($fv('minimum_requirements')) ?></textarea></label>
+        </div>
+    </section>
+
+    </div><!-- /form-cards -->
     <div class="admin-form-actions">
-        <button class="btn btn-primary" type="submit">Add software</button>
-        <button class="btn btn-ghost" type="submit" name="and_new" value="1" title="Publish and open a fresh form for the next one">Add &amp; next ➜</button>
-        <span class="muted small">Trust score is calculated automatically. Only add official / authorized sources.</span>
+        <?php if ($isEdit): ?>
+            <button class="btn btn-primary" type="submit">💾 Save changes</button>
+            <span class="muted small">Trust <?= (int) ($s['trust_score'] ?? 0) ?> · Quality <?= (int) ($s['quality_score'] ?? 0) ?> · <?= e($s['verification_status'] ?? '') ?></span>
+        <?php else: ?>
+            <button class="btn btn-primary" type="submit">Add software</button>
+            <button class="btn btn-ghost" type="submit" name="and_new" value="1" title="Publish and open a fresh form for the next one">Add &amp; next ➜</button>
+            <span class="muted small">Trust score is calculated automatically. Only add official / authorized sources.</span>
+        <?php endif; ?>
     </div>
 </form>
 

@@ -1034,11 +1034,47 @@ final class SoftwareAdminController extends AdminController
         if ($software === null) {
             $this->render('admin/software/index', ['title' => 'Not found', 'items' => [], 'total' => 0, 'page' => 1, 'perPage' => 30, 'status' => '', 'q' => '']);
         }
-        $this->render('admin/software/edit', [
-            'title'      => 'Edit: ' . $software['name'],
-            'software'   => $software,
-            'categories' => Category::all(),
-            'oss'        => Database::all('SELECT * FROM operating_systems ORDER BY sort_order'),
+        // Prefill features / pros / cons / tags text for the shared form.
+        $byType = ['feature' => [], 'pro' => [], 'con' => []];
+        foreach (Database::all('SELECT `type`, label FROM software_features WHERE software_id = :s ORDER BY sort_order', ['s' => $software['id']]) as $r) {
+            if (isset($byType[$r['type']])) { $byType[$r['type']][] = $r['label']; }
+        }
+        $tagsText = implode(', ', array_column(
+            Database::all('SELECT t.name FROM software_tags st JOIN tags t ON t.id = st.tag_id WHERE st.software_id = :s', ['s' => $software['id']]),
+            'name'
+        ));
+        // Which OS boxes to tick: the m2m rows, else match the text label.
+        $checkedOsIds = array_map('intval', array_column(
+            Database::all('SELECT os_id FROM software_operating_systems WHERE software_id = :s', ['s' => $software['id']]),
+            'os_id'
+        ));
+        if (!$checkedOsIds) {
+            $osTextL = mb_strtolower((string) ($software['operating_system'] ?? ''));
+            foreach (Database::all('SELECT id, name FROM operating_systems') as $os) {
+                $key = mb_strtolower((string) preg_split('~[ ,/]~', (string) $os['name'])[0]);
+                if ($osTextL !== '' && $key !== '' && str_contains($osTextL, $key)) { $checkedOsIds[] = (int) $os['id']; }
+            }
+        }
+        $checkedOsv = array_values(array_filter(array_map('trim', explode(',', (string) ($software['operating_system'] ?? '')))));
+
+        $this->render('admin/software/create', [
+            'title'        => 'Edit: ' . $software['name'],
+            'mode'         => 'edit',
+            's'            => $software,
+            'action'       => base_url('/admin/software/' . $software['id'] . '/edit'),
+            'categories'   => Category::all(),
+            'oss'          => Database::all('SELECT * FROM operating_systems ORDER BY sort_order'),
+            'osVersions'   => $this->osVersionOptions(),
+            'priceTypes'   => $this->priceTypeOptions(),
+            'panelGroup'   => '',
+            'preOs'        => 0,
+            'checkedOsIds' => $checkedOsIds ?: [0],
+            'checkedOsv'   => $checkedOsv,
+            'featuresText' => implode("\n", $byType['feature']),
+            'prosText'     => implode("\n", $byType['pro']),
+            'consText'     => implode("\n", $byType['con']),
+            'tagsText'     => $tagsText,
+            'panelLabel'   => null,
         ]);
     }
 
@@ -1052,27 +1088,74 @@ final class SoftwareAdminController extends AdminController
             $this->redirect(base_url('/admin/software'));
         }
 
-        $fields = ['name', 'developer_name', 'developer_website', 'official_website',
-            'official_download_url', 'short_description', 'long_description', 'version',
-            'license_type', 'price_type', 'architecture', 'operating_system',
-            'minimum_requirements', 'file_size'];
-        $data = [];
-        foreach ($fields as $f) {
-            $data[$f] = $this->request->input($f, $software[$f]);
+        $this->ensureIos();
+        $this->ensureColumns();
+        $name = $this->request->str('name') ?: (string) $software['name'];
+
+        // Operating systems: checkboxes -> m2m + label; versions -> detail text.
+        $osIds = array_filter(array_map('intval', (array) $this->request->input('os', [])));
+        $osVersions = array_values(array_filter(array_map(
+            static fn($v) => trim((string) $v),
+            (array) $this->request->input('os_versions', [])
+        )));
+        $osText = $osVersions ? implode(', ', array_slice($osVersions, 0, 12)) : $this->request->str('operating_system', (string) $software['operating_system']);
+        $osLabel = $osText !== '' ? $osText : ($osIds ? Classifier::osLabel($osIds) : (string) $software['operating_system']);
+        if ($osVersions) { $this->rememberOsVersions($osVersions); }
+
+        // Logo: an uploaded file wins over the URL field; keep existing otherwise.
+        $logo = $this->request->str('logo') ?: $software['logo'];
+        if (!empty($_FILES['logo_file']['tmp_name']) && is_uploaded_file($_FILES['logo_file']['tmp_name'])) {
+            $up = $this->saveImage($_FILES['logo_file']);
+            if ($up) { $logo = $up; }
         }
-        $data['category_id'] = $this->request->int('category_id') ?: null;
-        $data['min_ram_mb'] = $this->request->int('min_ram_mb') ?: null;
-        $data['is_open_source'] = $this->request->str('is_open_source') === '1' ? 1 : 0;
-        $data['long_description'] = sanitize_rich((string) $data['long_description']);
-        $data['status'] = $this->request->str('status', $software['status']);
+
+        $data = [
+            'name'                  => $name,
+            'developer_name'        => $this->request->str('developer_name') ?: null,
+            'developer_website'     => $this->request->str('developer_website') ?: null,
+            'official_website'      => $this->request->str('official_website') ?: null,
+            'official_download_url' => $this->request->str('official_download_url') ?: null,
+            'short_description'     => $this->request->str('short_description') ?: null,
+            'long_description'      => sanitize_rich((string) $this->request->input('long_description', '')) ?: null,
+            'version'               => $this->request->str('version') ?: null,
+            'release_date'          => $this->request->str('release_date') ?: null,
+            'price_type'            => $this->request->str('price_type') ?: null,
+            'file_size'             => $this->request->str('file_size') ?: null,
+            'operating_system'      => $osLabel ?: null,
+            'minimum_requirements'  => (string) $this->request->input('minimum_requirements', '') ?: null,
+            'category_id'           => $this->request->int('category_id') ?: null,
+            'logo'                  => $logo,
+            'video_url'             => $this->request->str('video_url') ?: null,
+            'auto_update'           => $this->request->str('auto_update') === '1' ? 1 : 0,
+            'status'                => $this->request->str('status', (string) $software['status']),
+        ];
+        $data['is_open_source'] = $data['price_type'] === 'open_source' ? 1 : (int) $software['is_open_source'];
+        $data['trust_score']    = TrustScore::compute($data + $software);
+        $data['quality_score']  = TrustScore::quality($data + $software);
         \App\Services\Dedupe::ensureSchema();
-        $data['dedupe_key'] = \App\Services\Dedupe::key((string) $data['name']);
+        $data['dedupe_key']  = \App\Services\Dedupe::key($name);
+        $data['last_updated'] = gmdate('Y-m-d H:i:s');
 
         Database::update('software', $data, ['id' => $id]);
+
+        // Reset OS mapping when checkboxes were submitted.
+        if ($osIds) {
+            Database::run('DELETE FROM software_operating_systems WHERE software_id = :s', ['s' => $id]);
+            foreach ($osIds as $osId) {
+                try {
+                    Database::run('INSERT IGNORE INTO software_operating_systems (software_id, os_id) VALUES (:s, :o)', ['s' => $id, 'o' => $osId]);
+                } catch (\Throwable $e) {}
+            }
+        }
+        try { $this->saveScreenshots($id); } catch (\Throwable $e) {}
+        try { $this->saveFeatures($id); } catch (\Throwable $e) {}
+        try { $this->saveTags($id); } catch (\Throwable $e) {}
+
         Seo::generateForSoftware($id);
+        if ($data['status'] === 'published') { Sitemap::generateAll(); }
         $this->audit('software.update', 'software', $id);
 
-        \App\Core\Session::flash('ok', 'Software updated.');
+        Session::flash('ok', '✅ Changes saved.');
         $this->redirect(base_url('/admin/software/' . $id . '/edit'));
     }
 
