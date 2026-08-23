@@ -1,15 +1,6 @@
 <?php
 /** @var array $item */
-$badge = trust_badge((int) ($item['trust_score'] ?? 0));
-$price = $item['price_type'] ?? '';
-$priceLabel = match ($price) {
-    'free' => 'Free',
-    'open_source' => 'Open Source',
-    'freemium' => 'Freemium',
-    'paid' => 'Paid',
-    'trial' => 'Trial',
-    default => '',
-};
+$lb = license_badge($item);
 ?>
 <article class="card">
     <a class="card-link" href="<?= e(base_url('/software/' . $item['slug'])) ?>">
@@ -31,11 +22,12 @@ $priceLabel = match ($price) {
         <p class="card-desc"><?= e(str_excerpt($item['short_description'] ?: $item['long_description'], 96)) ?></p>
         <div class="card-meta">
             <?php if (!empty($item['version'])): ?><span class="chip">v<?= e($item['version']) ?></span><?php endif; ?>
-            <?php if ($priceLabel): ?><span class="chip chip-soft"><?= e($priceLabel) ?></span><?php endif; ?>
             <?php if (!empty($item['operating_system'])): ?><span class="chip chip-ghost"><?= e(str_excerpt($item['operating_system'], 22)) ?></span><?php endif; ?>
         </div>
         <div class="card-foot">
-            <span class="trust <?= e($badge['class']) ?>" title="<?= e($badge['label']) ?>"><?= $badge['dot'] ?> <?= e($badge['label']) ?></span>
+            <?php if ($lb['label']): ?>
+                <span class="license-badge <?= e($lb['class']) ?>"><?= e($lb['label']) ?></span>
+            <?php else: ?><span></span><?php endif; ?>
             <?php if (!empty($item['last_updated'])): ?>
                 <span class="muted small">Updated <?= e(time_ago($item['last_updated'])) ?></span>
             <?php endif; ?>

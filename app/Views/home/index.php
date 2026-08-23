@@ -41,6 +41,17 @@ use App\Core\View;
 <?= View::partial('partials/section', ['heading' => 'Recently Updated', 'items' => $recentlyUpdated, 'moreUrl' => '/software?sort=updated']) ?>
 <?= View::partial('partials/section', ['heading' => 'New Software', 'items' => $newest, 'moreUrl' => '/new-software']) ?>
 
+<?php if (!empty($categorySections)): ?>
+<div class="container"><div class="section-head"><h2>Popular Categories</h2><a class="see-all" href="<?= e(base_url('/categories')) ?>">Browse all →</a></div></div>
+<?php foreach ($categorySections as $sec): ?>
+    <?= View::partial('partials/section', [
+        'heading' => $sec['category']['name'],
+        'items'   => $sec['items'],
+        'moreUrl' => '/category/' . $sec['category']['slug'],
+    ]) ?>
+<?php endforeach; ?>
+<?php endif; ?>
+
 <?php if ($ad = setting('ad_incontent')): ?><div class="ad ad-incontent container"><?= $ad ?></div><?php endif; ?>
 
 <?= View::partial('partials/section', ['heading' => 'Free Software', 'items' => $free, 'moreUrl' => '/software?price=free']) ?>

@@ -2,10 +2,8 @@
 /** @var array $software */
 use App\Core\View;
 $s = $software;
-$badge = trust_badge((int) $s['trust_score']);
-$quality = quality_label((int) $s['quality_score']);
-$downloadLabel = str_contains((string) $s['source_type'], 'github') ? 'Download from GitHub'
-    : (($s['source_type'] === 'winget') ? 'Download (Official)' : 'Download from Official Website');
+$lb = license_badge($s);
+$downloadLabel = download_label($s);
 $hasDownload = !empty($s['official_download_url']) || !empty($s['official_website']);
 ?>
 <div class="container detail-breadcrumb">
@@ -27,10 +25,10 @@ $hasDownload = !empty($s['official_download_url']) || !empty($s['official_websit
             <h1><?= e($s['name']) ?></h1>
             <p class="detail-short"><?= e($s['short_description'] ?: str_excerpt($s['long_description'], 160)) ?></p>
             <div class="detail-badges">
-                <span class="trust <?= e($badge['class']) ?>"><?= $badge['dot'] ?> <?= e($badge['label']) ?></span>
-                <span class="chip chip-soft">Quality: <?= e($quality) ?></span>
+                <?php if ($lb['label']): ?><span class="license-badge <?= e($lb['class']) ?>"><?= e($lb['label']) ?></span><?php endif; ?>
                 <?php if (!empty($s['version'])): ?><span class="chip">v<?= e($s['version']) ?></span><?php endif; ?>
                 <?php if (!empty($s['developer_name'])): ?><span class="chip chip-ghost">By <?= e($s['developer_name']) ?></span><?php endif; ?>
+                <?php if (!empty($s['last_updated'])): ?><span class="muted small">Updated <?= e(time_ago($s['last_updated'])) ?></span><?php endif; ?>
             </div>
         </div>
         <div class="detail-actions">

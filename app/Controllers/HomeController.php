@@ -29,6 +29,16 @@ final class HomeController extends Controller
             'updates'         => Software::recentUpdates(10),
         ];
 
+        // "Popular categories" — each top category with its top apps.
+        $sections = [];
+        foreach (Category::trending(6) as $c) {
+            $items = Software::byCategory((int) $c['id'], 5);
+            if (count($items) >= 3) {
+                $sections[] = ['category' => $c, 'items' => $items];
+            }
+        }
+        $data['categorySections'] = $sections;
+
         $this->view('home/index', $data);
     }
 }

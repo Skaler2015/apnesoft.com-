@@ -78,6 +78,15 @@ final class Software
         );
     }
 
+    public static function byCategory(int $categoryId, int $limit = 5): array
+    {
+        return Database::all(
+            'SELECT * FROM software WHERE status = :st AND (category_id = :c OR subcategory_id = :c)
+             ORDER BY (views + download_clicks * 2) DESC, trust_score DESC LIMIT ' . (int) $limit,
+            ['st' => self::PUBLISHED, 'c' => $categoryId]
+        );
+    }
+
     public static function byOsSlug(string $osSlug, int $limit = 12): array
     {
         return Database::all(

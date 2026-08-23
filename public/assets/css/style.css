@@ -105,6 +105,15 @@ h1,h2,h3,h4{line-height:1.2;margin:0 0 .4em}
 .card-foot{display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--border);padding-top:10px}
 .trust{font-size:.78rem;font-weight:700}
 .trust-green{color:var(--green)}.trust-yellow{color:var(--yellow)}.trust-red{color:var(--red)}
+/* Directory-style licence tags (FREE / OPEN SOURCE / TRIAL …) */
+.license-badge{display:inline-block;font-size:.68rem;font-weight:800;letter-spacing:.04em;
+  text-transform:uppercase;padding:.28em .6em;border-radius:6px;line-height:1;white-space:nowrap}
+.lb-free{background:color-mix(in srgb,var(--green) 16%,transparent);color:var(--green)}
+.lb-oss{background:color-mix(in srgb,#0ea5e9 16%,transparent);color:#0284c7}
+.lb-freemium{background:color-mix(in srgb,#0d9488 16%,transparent);color:#0d9488}
+.lb-trial{background:color-mix(in srgb,var(--yellow) 18%,transparent);color:var(--yellow)}
+.lb-demo{background:color-mix(in srgb,#7c3aed 16%,transparent);color:#7c3aed}
+.lb-paid{background:color-mix(in srgb,var(--brand) 16%,transparent);color:var(--brand)}
 
 /* Update list */
 .update-list{display:flex;flex-direction:column;gap:2px}

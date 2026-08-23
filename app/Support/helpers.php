@@ -98,6 +98,46 @@ if (!function_exists('quality_label')) {
     }
 }
 
+if (!function_exists('license_badge')) {
+    /**
+     * Directory-style licence tag (FREE / OPEN SOURCE / TRIAL …) from real data.
+     * Returns ['label' => '', 'class' => ''] when the licence is unknown so we
+     * never guess. @param array $item a software row
+     */
+    function license_badge(array $item): array
+    {
+        $price = strtolower((string) ($item['price_type'] ?? ''));
+        $oss   = !empty($item['is_open_source']);
+
+        if ($price === 'open_source' || ($oss && in_array($price, ['', 'free'], true))) {
+            return ['label' => 'OPEN SOURCE', 'class' => 'lb-oss'];
+        }
+        return match ($price) {
+            'free'     => ['label' => 'FREE', 'class' => 'lb-free'],
+            'freemium' => ['label' => 'FREEMIUM', 'class' => 'lb-freemium'],
+            'trial'    => ['label' => 'TRIAL', 'class' => 'lb-trial'],
+            'demo'     => ['label' => 'DEMO', 'class' => 'lb-demo'],
+            'paid'     => ['label' => 'PAID', 'class' => 'lb-paid'],
+            default    => ['label' => '', 'class' => ''],
+        };
+    }
+}
+
+if (!function_exists('download_label')) {
+    /** OS-specific download button label, e.g. "Download for Windows". */
+    function download_label(array $item): string
+    {
+        $os = strtolower((string) ($item['operating_system'] ?? ''));
+        foreach (['windows' => 'Windows', 'macos' => 'macOS', 'mac' => 'macOS',
+                  'android' => 'Android', 'linux' => 'Linux', 'ios' => 'iOS'] as $needle => $label) {
+            if (str_contains($os, $needle)) {
+                return 'Download for ' . $label;
+            }
+        }
+        return 'Download';
+    }
+}
+
 if (!function_exists('config')) {
     function config(string $key, mixed $default = null): mixed
     {
