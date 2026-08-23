@@ -1236,3 +1236,27 @@ $action = $action ?? base_url('/admin/software/new');
     });
 })();
 </script>
+
+<script>
+(function () {
+    var form = document.querySelector('.admin-form'); if (!form) return;
+    function norm(u) { u = (u || '').trim(); if (!u) return ''; return /^https?:\/\//i.test(u) ? u : 'https://' + u; }
+    function tool(label, title, fn) { var b = document.createElement('button'); b.type = 'button'; b.className = 'mini-tool'; b.textContent = label; b.title = title; b.style.marginTop = '6px'; b.addEventListener('click', fn); return b; }
+    ['official_website', 'developer_website', 'official_download_url'].forEach(function (name) {
+        var el = form.querySelector('[name="' + name + '"]'); if (!el) return;
+        var row = document.createElement('div'); row.className = 'tool-row';
+        row.appendChild(tool('↗ New tab', 'नई tab में खोलें', function () {
+            var u = norm(el.value); if (!u) { el.focus(); return; }
+            window.open(u, '_blank', 'noopener,noreferrer');
+        }));
+        row.appendChild(tool('👁 Preview', 'popup में देखें', function () {
+            var u = norm(el.value); if (!u) { el.focus(); return; }
+            var w = Math.min(1024, screen.width - 80), h = Math.min(720, screen.height - 120);
+            var x = (screen.width - w) / 2, y = (screen.height - h) / 2;
+            var win = window.open(u, 'sw_preview', 'width=' + w + ',height=' + h + ',left=' + x + ',top=' + y + ',scrollbars=yes,resizable=yes');
+            if (!win) alert('Popup ब्लॉक हो गया — browser में इस साइट के लिए popup allow करें, या New tab इस्तेमाल करें।');
+        }));
+        (el.closest('label') || el.parentNode).appendChild(row);
+    });
+})();
+</script>
