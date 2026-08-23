@@ -125,6 +125,9 @@ $action = $action ?? base_url('/admin/software/new');
                 return 'Other';
             };
             foreach (($osVersions ?? []) as $v) { $osGroups[$osGroupOf($v)][] = $v; }
+            // Sort each group newest-first (natural order) so versions stay tidy.
+            foreach ($osGroups as $g => &$arr) { usort($arr, static fn($a, $b) => strnatcasecmp((string) $b, (string) $a)); }
+            unset($arr);
             $panelGroup = $panelGroup ?? '';
             // If a platform panel is open, show only that group.
             $visibleGroups = $panelGroup !== '' ? [$panelGroup] : $osGroupOrder;
@@ -529,7 +532,15 @@ $action = $action ?? base_url('/admin/software/new');
             cb.type = 'checkbox'; cb.name = 'os_versions[]'; cb.value = val; cb.checked = !!checked;
             cb.addEventListener('change', updateSummary);
             lab.appendChild(cb); lab.appendChild(document.createTextNode(' ' + val));
-            items.appendChild(lab);
+            // Insert in sorted (newest-first, natural) position within the group.
+            var siblings = items.querySelectorAll('label.osv-item'), placed = false;
+            for (var i = 0; i < siblings.length; i++) {
+                var other = siblings[i].querySelector('input').value;
+                if (val.localeCompare(other, undefined, { numeric: true, sensitivity: 'base' }) > 0) {
+                    items.insertBefore(lab, siblings[i]); placed = true; break;
+                }
+            }
+            if (!placed) items.appendChild(lab);
             updateSummary();
         }
 
