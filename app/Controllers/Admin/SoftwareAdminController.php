@@ -153,7 +153,16 @@ final class SoftwareAdminController extends AdminController
 
         $status = $this->request->str('status');
         $q = $this->request->str('q');
-        $os = $this->request->str('os'); // platform tab: windows|macos|ios|android
+        // Platform: no param -> the panel chosen at login (session); 'all' -> no
+        // filter; a slug -> that platform (and remember it as the active panel).
+        $osParam = $this->request->query('os');
+        if ($osParam === null) {
+            $os = (string) \App\Core\Session::get('admin_platform', '');
+        } elseif ($osParam === 'all') {
+            $os = '';
+        } else {
+            $os = (string) $osParam;
+        }
         $where = ['1=1'];
         $params = [];
         if ($status !== '') {
@@ -169,6 +178,9 @@ final class SoftwareAdminController extends AdminController
         if (isset($osLike[$os])) {
             $where[] = 'operating_system LIKE :os';
             $params['os'] = $osLike[$os];
+            \App\Core\Session::set('admin_platform', $os); // keep the active panel in sync
+        } elseif ($osParam === 'all') {
+            \App\Core\Session::forget('admin_platform');
         }
         $page = $this->page();
         $offset = ($page - 1) * 30;

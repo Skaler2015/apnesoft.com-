@@ -53,6 +53,14 @@ foreach ($nav as $href => $_x) {
         <header class="admin-top">
             <h1><?= e($title ?? '') ?></h1>
             <div class="admin-user">
+                <?php $curPlat = \App\Controllers\Admin\PlatformController::current(); ?>
+                <?php if ($curPlat): ?>
+                    <a href="<?= e(base_url('/admin/platform')) ?>" class="plat-pill" title="Switch platform panel">
+                        <strong><?= e($curPlat['label']) ?></strong> panel · ⇄ switch
+                    </a>
+                <?php else: ?>
+                    <a href="<?= e(base_url('/admin/platform')) ?>" class="plat-pill">⇄ Choose platform</a>
+                <?php endif; ?>
                 <span><?= e($admin['name'] ?? 'Admin') ?> · <span class="muted"><?= e($admin['role'] ?? '') ?></span></span>
                 <form method="post" action="<?= e(base_url('/admin/logout')) ?>" class="inline">
                     <?= \App\Core\Csrf::field() ?>

@@ -67,6 +67,10 @@ $router->post('/admin/logout', [AuthController::class, 'logout']);
 $router->get('/admin', [DashboardController::class, 'index']);
 $router->get('/admin/notifications', [DashboardController::class, 'notifications']);
 
+$router->get('/admin/platform', [\App\Controllers\Admin\PlatformController::class, 'chooser']);
+$router->post('/admin/platform/reset', [\App\Controllers\Admin\PlatformController::class, 'wipe']);
+$router->get('/admin/platform/{slug}', [\App\Controllers\Admin\PlatformController::class, 'select']);
+
 $router->get('/admin/bulk-import', [\App\Controllers\Admin\BulkImportController::class, 'index']);
 $router->post('/admin/bulk-import/start', [\App\Controllers\Admin\BulkImportController::class, 'start']);
 $router->post('/admin/bulk-import/toggle', [\App\Controllers\Admin\BulkImportController::class, 'toggle']);

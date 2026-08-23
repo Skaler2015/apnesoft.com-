@@ -5,11 +5,11 @@
 
 <div class="plat-tabs" style="display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 14px">
     <?php
-    $tabs = ['' => 'All', 'windows' => '🪟 Windows', 'macos' =>  'Mac', 'ios' =>  'iOS', 'android' => '🤖 Android'];
+    $tabs = ['all' => 'All', 'windows' => '🪟 Windows', 'macos' => '🖥️ Mac', 'ios' => '📱 iOS', 'android' => '🤖 Android'];
     foreach ($tabs as $slug => $label):
-        $active = $os === $slug;
-        $count = $slug === '' ? ($counts['all'] ?? null) : ($counts[$slug] ?? null);
-        $url = base_url('/admin/software' . ($slug ? '?os=' . $slug : ''));
+        $active = ($slug === 'all') ? ($os === '') : ($os === $slug);
+        $count = $slug === 'all' ? ($counts['all'] ?? null) : ($counts[$slug] ?? null);
+        $url = base_url('/admin/software?os=' . $slug);
     ?>
         <a href="<?= e($url) ?>" class="btn btn-sm <?= $active ? 'btn-primary' : 'btn-ghost' ?>">
             <?= e($label) ?><?php if ($count !== null): ?> <span class="muted">(<?= number_format($count) ?>)</span><?php endif; ?>

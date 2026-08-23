@@ -16,7 +16,7 @@ final class AuthController extends Controller
     public function showLogin(array $args = []): never
     {
         if (Auth::check()) {
-            $this->redirect(base_url('/admin'));
+            $this->redirect(base_url('/admin/platform'));
         }
         Response::html(View::render('admin/login', [
             'title'   => 'Admin Login',
@@ -38,7 +38,8 @@ final class AuthController extends Controller
         }
 
         if (Auth::attempt($email, $password, $ip)) {
-            $this->redirect(base_url('/admin'));
+            // Land on the platform chooser (Windows / Mac / iOS / Android).
+            $this->redirect(base_url('/admin/platform'));
         }
 
         Session::flash('login_error', 'Invalid credentials.');

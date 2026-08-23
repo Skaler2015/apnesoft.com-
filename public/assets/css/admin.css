@@ -69,3 +69,8 @@ code{background:var(--surface-2);padding:.1em .4em;border-radius:4px;font-size:.
   .admin-nav-foot{flex-direction:row;margin:0}
   .admin-columns,.admin-form .form-grid{grid-template-columns:1fr}
 }
+
+/* Active-platform pill in the admin topbar */
+.plat-pill{display:inline-block;font-size:.78rem;font-weight:600;padding:.3em .7em;border-radius:999px;
+  background:color-mix(in srgb,var(--brand) 16%,transparent);color:var(--brand);text-decoration:none;margin-right:10px}
+.plat-pill:hover{background:var(--brand);color:#fff}
