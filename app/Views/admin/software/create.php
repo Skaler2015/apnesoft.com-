@@ -1201,3 +1201,38 @@ $action = $action ?? base_url('/admin/software/new');
     });
 })();
 </script>
+
+<style>
+.fc-foot{display:flex;justify-content:flex-end;margin-top:14px;padding-top:12px;border-top:1px dashed var(--border)}
+.fc-clear{color:var(--red)!important;border-color:color-mix(in srgb,var(--red) 35%,var(--border))!important}
+.fc-clear:hover{background:color-mix(in srgb,var(--red) 10%,transparent)!important;border-color:var(--red)!important}
+</style>
+<script>
+(function () {
+    var form = document.querySelector('.admin-form'); if (!form) return;
+    form.querySelectorAll('.form-card[data-tab]').forEach(function (card) {
+        if (card.id === 'tab-review') return; // no fields to clear here
+        var foot = document.createElement('div'); foot.className = 'fc-foot';
+        var b = document.createElement('button');
+        b.type = 'button'; b.className = 'mini-tool fc-clear'; b.style.marginTop = '0';
+        b.textContent = '🧹 इस section को clear करें';
+        b.addEventListener('click', function () {
+            if (!confirm('इस section के सभी fields खाली कर दें?')) return;
+            card.querySelectorAll('input, textarea, select').forEach(function (el) {
+                if (el.type === 'checkbox' || el.type === 'radio') { el.checked = false; }
+                else if (el.type === 'file') { el.value = ''; }
+                else if (el.tagName === 'SELECT') { el.selectedIndex = 0; }
+                else { el.value = ''; }
+                el.dispatchEvent(new Event('input')); el.dispatchEvent(new Event('change'));
+            });
+            // Rich editor + screenshot previews inside this section.
+            var ed = card.querySelector('#rt-ed'); if (ed) { ed.innerHTML = ''; var src = card.querySelector('#rt-src'); if (src) src.value = ''; }
+            card.querySelectorAll('.tool-prev, .tool-thumb').forEach(function (n) { n.innerHTML = ''; });
+            if (card.querySelector('input[name="screenshots[]"]')) { var su = document.getElementById('f-shoturls'); if (su) su.value = ''; }
+            if (typeof updatePreview === 'function') updatePreview();
+        });
+        foot.appendChild(b);
+        card.appendChild(foot);
+    });
+})();
+</script>
