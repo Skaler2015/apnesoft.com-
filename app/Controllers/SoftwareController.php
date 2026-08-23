@@ -79,6 +79,9 @@ final class SoftwareController extends Controller
             'pros'            => Software::features($id, 'pro'),
             'cons'            => Software::features($id, 'con'),
             'screenshots'     => Software::screenshots($id),
+            'tags'            => \App\Core\Database::all(
+                'SELECT t.name, t.slug FROM tags t JOIN software_tags st ON st.tag_id = t.id
+                 WHERE st.software_id = :id ORDER BY t.name', ['id' => $id]),
             'alternatives'    => Software::alternatives($id, 6),
             'similar'         => Software::similar($software, 6),
         ]);

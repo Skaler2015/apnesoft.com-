@@ -123,6 +123,8 @@ CREATE TABLE IF NOT EXISTS software (
     external_ref          VARCHAR(300) NULL,  -- e.g. github owner/repo, winget package id
     dedupe_key            VARCHAR(160) NOT NULL DEFAULT '', -- normalized name for cross-source de-duplication
     ai_enhanced_at        DATETIME NULL,      -- last time AI enriched this record
+    video_url             VARCHAR(500) NULL,  -- optional demo / YouTube video
+    auto_update           TINYINT(1) NOT NULL DEFAULT 0, -- auto-bump version when a newer one is found
     trust_score           TINYINT UNSIGNED NOT NULL DEFAULT 0,
     quality_score         TINYINT UNSIGNED NOT NULL DEFAULT 0,
     verification_status   VARCHAR(20) NOT NULL DEFAULT 'unverified', -- verified|review|unverified

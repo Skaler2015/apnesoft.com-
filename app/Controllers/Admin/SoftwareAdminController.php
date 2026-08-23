@@ -51,6 +51,185 @@ final class SoftwareAdminController extends AdminController
         return (int) (Database::scalar('SELECT id FROM operating_systems WHERE slug = :s', ['s' => $slug]) ?: 0);
     }
 
+    /** Add the optional video_url + auto_update columns once, if missing. */
+    private function ensureColumns(): void
+    {
+        static $done = false;
+        if ($done) {
+            return;
+        }
+        $done = true;
+        $cols = [
+            'video_url'   => "ALTER TABLE software ADD COLUMN video_url VARCHAR(500) NULL",
+            'auto_update' => "ALTER TABLE software ADD COLUMN auto_update TINYINT(1) NOT NULL DEFAULT 0",
+        ];
+        foreach ($cols as $col => $sql) {
+            $exists = Database::scalar(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'software' AND COLUMN_NAME = :c", ['c' => $col]);
+            if ((int) $exists === 0) {
+                try { Database::run($sql); } catch (\Throwable $e) {}
+            }
+        }
+    }
+
+    /** Validate + store one uploaded image; returns a root-relative URL or null. */
+    private function saveImage(array $file): ?string
+    {
+        if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+            return null;
+        }
+        if (($file['size'] ?? 0) <= 0 || $file['size'] > 4 * 1024 * 1024) {
+            return null;
+        }
+        $allowed = ['png' => 'png', 'jpg' => 'jpg', 'jpeg' => 'jpg', 'gif' => 'gif', 'webp' => 'webp', 'svg' => 'svg', 'ico' => 'ico'];
+        $ext = strtolower(pathinfo((string) $file['name'], PATHINFO_EXTENSION));
+        if (!isset($allowed[$ext])) {
+            return null;
+        }
+        $dir = \App\Core\Config::get('paths.public') . '/assets/uploads';
+        if (!is_dir($dir) && !@mkdir($dir, 0775, true) && !is_dir($dir)) {
+            return null;
+        }
+        $nm = 'sw-' . bin2hex(random_bytes(6)) . '.' . $allowed[$ext];
+        if (!move_uploaded_file($file['tmp_name'], $dir . '/' . $nm)) {
+            return null;
+        }
+        return '/assets/uploads/' . $nm; // root-relative so it loads on every subdomain
+    }
+
+    /** Store uploaded screenshots for a software id. */
+    private function saveScreenshots(int $id): void
+    {
+        if (empty($_FILES['screenshots']['name']) || !is_array($_FILES['screenshots']['name'])) {
+            return;
+        }
+        $order = (int) Database::scalar('SELECT COALESCE(MAX(sort_order),0) FROM software_screenshots WHERE software_id = :s', ['s' => $id]);
+        $f = $_FILES['screenshots'];
+        $n = count($f['name']);
+        for ($i = 0; $i < $n && $i < 12; $i++) {
+            if (($f['error'][$i] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+                continue;
+            }
+            $url = $this->saveImage([
+                'name' => $f['name'][$i], 'tmp_name' => $f['tmp_name'][$i],
+                'size' => $f['size'][$i], 'error' => $f['error'][$i],
+            ]);
+            if ($url) {
+                Database::run('INSERT INTO software_screenshots (software_id, url, sort_order) VALUES (:s, :u, :o)',
+                    ['s' => $id, 'u' => $url, 'o' => ++$order]);
+            }
+        }
+    }
+
+    /** Save features / pros / cons (one item per line) for a software id. */
+    private function saveFeatures(int $id): void
+    {
+        foreach (['feature' => 'features', 'pro' => 'pros', 'con' => 'cons'] as $type => $field) {
+            $raw = (string) $this->request->input($field, '');
+            $lines = array_values(array_filter(array_map('trim', preg_split('/\r\n|\r|\n/', $raw) ?: [])));
+            if (!$lines) {
+                continue;
+            }
+            Database::run('DELETE FROM software_features WHERE software_id = :s AND `type` = :t', ['s' => $id, 't' => $type]);
+            $o = 0;
+            foreach (array_slice($lines, 0, 12) as $label) {
+                Database::run('INSERT INTO software_features (software_id, `type`, label, sort_order) VALUES (:s, :t, :l, :o)',
+                    ['s' => $id, 't' => $type, 'l' => mb_substr($label, 0, 300), 'o' => $o++]);
+            }
+        }
+    }
+
+    /** Save comma-separated tags for a software id. */
+    private function saveTags(int $id): void
+    {
+        $raw = (string) $this->request->input('tags', '');
+        $names = array_values(array_unique(array_filter(array_map('trim', explode(',', $raw)))));
+        if (!$names) {
+            return;
+        }
+        Database::run('DELETE FROM software_tags WHERE software_id = :s', ['s' => $id]);
+        foreach (array_slice($names, 0, 20) as $name) {
+            $slug = slugify($name);
+            if ($slug === '') {
+                continue;
+            }
+            $tagId = (int) Database::scalar('SELECT id FROM tags WHERE slug = :s', ['s' => $slug]);
+            if (!$tagId) {
+                Database::run('INSERT IGNORE INTO tags (name, slug) VALUES (:n, :s)', ['n' => mb_substr($name, 0, 80), 's' => $slug]);
+                $tagId = (int) Database::scalar('SELECT id FROM tags WHERE slug = :s', ['s' => $slug]);
+            }
+            if ($tagId) {
+                Database::run('INSERT IGNORE INTO software_tags (software_id, tag_id) VALUES (:s, :t)', ['s' => $id, 't' => $tagId]);
+            }
+        }
+    }
+
+    /** POST /admin/software/quick — one-click: auto-fill from name, then publish. */
+    public function quickPublish(array $args = []): never
+    {
+        $this->requirePermission('software.manage');
+        Csrf::check($this->request);
+        $name = trim($this->request->str('name'));
+        if (mb_strlen($name) < 2) {
+            Session::flash('err', 'Type a software name first.');
+            $this->redirect(base_url('/admin/software/new'));
+        }
+        $this->ensureIos();
+        $this->ensureColumns();
+        $d = \App\Services\SoftwareLookup::search($name) ?? [];
+
+        $osIds = ($p = $this->panelOsId()) > 0 ? [$p] : [];
+        $osLabel = $osIds ? Classifier::osLabel($osIds) : ($d['operating_system'] ?? null);
+
+        $data = [
+            'name'                  => $d['name'] ?? $name,
+            'developer_name'        => $d['developer_name'] ?? null,
+            'developer_website'     => $d['developer_website'] ?? null,
+            'official_website'      => $d['official_website'] ?? null,
+            'official_download_url' => $d['official_download_url'] ?? null,
+            'short_description'     => $d['short_description'] ?? null,
+            'long_description'      => $d['long_description'] ?? null,
+            'version'               => $d['version'] ?? null,
+            'license_type'          => $d['license_type'] ?? null,
+            'price_type'            => $d['price_type'] ?? null,
+            'is_open_source'        => !empty($d['is_open_source']) ? 1 : 0,
+            'operating_system'      => $osLabel ?: null,
+            'category_id'           => $d['category_id'] ?? null,
+            'logo'                  => $d['logo'] ?? null,
+            'source_type'           => 'manual',
+        ];
+        $data['trust_score']         = TrustScore::compute($data);
+        $data['quality_score']       = TrustScore::quality($data);
+        $data['verification_status'] = $data['trust_score'] >= 70 ? 'verified' : ($data['trust_score'] >= 40 ? 'review' : 'unverified');
+        $data['status']              = 'published';
+        \App\Services\Dedupe::ensureSchema();
+        $data['dedupe_key']    = \App\Services\Dedupe::key((string) $data['name']);
+        $data['slug']          = $this->uniqueSlug(slugify((string) $data['name']));
+        $data['discovered_at'] = gmdate('Y-m-d H:i:s');
+        $data['last_checked_at'] = gmdate('Y-m-d H:i:s');
+        $data['last_updated']  = gmdate('Y-m-d H:i:s');
+
+        $id = Database::insert('software', array_filter($data, static fn($v) => $v !== null));
+        foreach ($osIds as $osId) {
+            try {
+                Database::run('INSERT IGNORE INTO software_operating_systems (software_id, os_id) VALUES (:s, :o)', ['s' => $id, 'o' => $osId]);
+            } catch (\Throwable $e) {}
+        }
+        // Enrich with AI when a key is configured (adds long description + features).
+        if (\App\Services\AiEnhancer::isConfigured()) {
+            try { \App\Services\AiEnhancer::enhance($id); } catch (\Throwable $e) {}
+        }
+        Seo::generateForSoftware($id);
+        Sitemap::generateAll();
+        $this->audit('software.quick', 'software', $id, (string) $data['name']);
+
+        Session::flash($d ? 'ok' : 'err', $d
+            ? '✨ Published "' . $data['name'] . '"' . (\App\Services\AiEnhancer::isConfigured() ? ' with AI' : '') . '.'
+            : 'No official details found — added with the name only. Please edit and fill it in.');
+        $this->redirect(base_url('/admin/software/' . $id . '/edit'));
+    }
+
     /** GET /admin/software/new — blank add-software form. */
     public function create(array $args = []): never
     {
@@ -84,11 +263,19 @@ final class SoftwareAdminController extends AdminController
         // ticked, default to the platform panel the admin is in, so the software
         // publishes to THAT platform's site only (not the others).
         $this->ensureIos();
+        $this->ensureColumns();
         $osIds = array_filter(array_map('intval', (array) $this->request->input('os', [])));
         if (!$osIds && ($panelOs = $this->panelOsId()) > 0) {
             $osIds = [$panelOs];
         }
         $osLabel = $osIds ? Classifier::osLabel($osIds) : $this->request->str('operating_system');
+
+        // Logo: an uploaded file wins over the URL field.
+        $logo = $this->request->str('logo') ?: null;
+        if (!empty($_FILES['logo_file']['tmp_name']) && is_uploaded_file($_FILES['logo_file']['tmp_name'])) {
+            $up = $this->saveImage($_FILES['logo_file']);
+            if ($up) { $logo = $up; }
+        }
 
         $data = [
             'name'                  => $name,
@@ -109,7 +296,9 @@ final class SoftwareAdminController extends AdminController
             'min_ram_mb'            => $this->request->int('min_ram_mb') ?: null,
             'minimum_requirements'  => (string) $this->request->input('minimum_requirements', '') ?: null,
             'category_id'           => $this->request->int('category_id') ?: null,
-            'logo'                  => $this->request->str('logo') ?: null,
+            'logo'                  => $logo,
+            'video_url'             => $this->request->str('video_url') ?: null,
+            'auto_update'           => $this->request->str('auto_update') === '1' ? 1 : 0,
             'source_type'           => 'manual',
         ];
 
@@ -153,6 +342,11 @@ final class SoftwareAdminController extends AdminController
             } catch (\Throwable $e) {
             }
         }
+
+        // Screenshots, features/pros/cons, and tags.
+        try { $this->saveScreenshots($id); } catch (\Throwable $e) {}
+        try { $this->saveFeatures($id); } catch (\Throwable $e) {}
+        try { $this->saveTags($id); } catch (\Throwable $e) {}
 
         Seo::generateForSoftware($id);
         if ($data['status'] === 'published') {

@@ -85,6 +85,7 @@ $router->get('/admin/software', [SoftwareAdminController::class, 'index']);
 $router->get('/admin/software/lookup', [SoftwareAdminController::class, 'lookup']);
 $router->get('/admin/software/new', [SoftwareAdminController::class, 'create']);
 $router->post('/admin/software/new', [SoftwareAdminController::class, 'store']);
+$router->post('/admin/software/quick', [SoftwareAdminController::class, 'quickPublish']);
 $router->get('/admin/software/{id}/edit', [SoftwareAdminController::class, 'edit']);
 $router->post('/admin/software/{id}/edit', [SoftwareAdminController::class, 'update']);
 $router->post('/admin/software/{id}/enhance', [\App\Controllers\Admin\AiController::class, 'enhanceOne']);

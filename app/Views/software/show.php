@@ -102,11 +102,39 @@ $hasDownload = !empty($s['official_download_url']) || !empty($s['official_websit
         </section>
         <?php endif; ?>
 
+        <?php if (!empty($s['video_url'])):
+            $vid = '';
+            if (preg_match('~(?:youtube\.com/watch\?v=|youtu\.be/|youtube\.com/embed/)([A-Za-z0-9_-]{11})~', (string) $s['video_url'], $m)) {
+                $vid = $m[1];
+            }
+        ?>
+        <section class="detail-section"><h2>Video</h2>
+            <?php if ($vid): ?>
+                <div style="position:relative;padding-top:56.25%;border-radius:12px;overflow:hidden;border:1px solid var(--border)">
+                    <iframe src="https://www.youtube.com/embed/<?= e($vid) ?>" style="position:absolute;inset:0;width:100%;height:100%;border:0"
+                            title="<?= e($s['name']) ?> video" allowfullscreen loading="lazy"></iframe>
+                </div>
+            <?php else: ?>
+                <a class="btn btn-ghost" rel="nofollow noopener" target="_blank" href="<?= e($s['video_url']) ?>">▶ Watch video</a>
+            <?php endif; ?>
+        </section>
+        <?php endif; ?>
+
         <?php if (!empty($screenshots)): ?>
         <section class="detail-section"><h2>Screenshots</h2>
             <div class="screenshot-grid">
                 <?php foreach ($screenshots as $sc): ?>
                     <img src="<?= e($sc['url']) ?>" alt="<?= e($sc['caption'] ?: $s['name'] . ' screenshot') ?>" loading="lazy">
+                <?php endforeach; ?>
+            </div>
+        </section>
+        <?php endif; ?>
+
+        <?php if (!empty($tags)): ?>
+        <section class="detail-section"><h2>Tags</h2>
+            <div class="chip-row">
+                <?php foreach ($tags as $t): ?>
+                    <a class="cat-pill" href="<?= e(base_url('/search?q=' . urlencode($t['name']))) ?>"><?= e($t['name']) ?></a>
                 <?php endforeach; ?>
             </div>
         </section>
