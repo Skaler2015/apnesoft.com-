@@ -286,10 +286,14 @@ final class SoftwareAdminController extends AdminController
         if ($os === '') {
             $os = (string) Session::get('admin_platform', '');
         }
-        $res = \App\Services\Publisher::publish($name, $url ?: null, $os ?: null, $withAi, $shot);
+        // Draft mode: prepare the post for later review instead of going live now.
+        $draft = $this->request->str('draft', '') === '1';
+        $status = $draft ? 'draft' : 'published';
+        $res = \App\Services\Publisher::publish($name, $url ?: null, $os ?: null, $withAi, $shot, $status);
         if (($res['id'] ?? 0) > 0) {
-            $this->audit('software.bulk', 'software', (int) $res['id'], $res['name']);
+            $this->audit($draft ? 'software.draft' : 'software.bulk', 'software', (int) $res['id'], $res['name']);
             $res['version'] = (string) \App\Core\Database::scalar('SELECT version FROM software WHERE id = :i', ['i' => (int) $res['id']]);
+            $res['draft'] = $draft ? 1 : 0;
         }
         $this->json(['ok' => true] + $res);
     }
@@ -700,6 +704,14 @@ final class SoftwareAdminController extends AdminController
             $params
         );
 
+        // Prepared drafts awaiting review (this platform).
+        $draftWhere = $kw !== '' ? 'AND operating_system LIKE :l' : '';
+        $drafts = Database::all(
+            "SELECT id, name, slug, logo, short_description, operating_system, version, status, created_at
+             FROM software WHERE status IN ('draft','review') $draftWhere ORDER BY created_at DESC LIMIT 40",
+            $params
+        );
+
         // Progress stats for this platform.
         $countWhere = $kw !== '' ? 'WHERE operating_system LIKE :l' : '';
         $total = (int) Database::scalar("SELECT COUNT(*) FROM software $countWhere", $params);
@@ -711,6 +723,7 @@ final class SoftwareAdminController extends AdminController
             'title'        => 'Discover',
             'candidates'   => $candidates,
             'recent'       => $recent,
+            'drafts'       => $drafts,
             'cats'         => $catsSeen,
             'stats'        => ['total' => $total, 'week' => $week, 'today' => $today, 'available' => count($candidates)],
             'platformSlug' => $slug,
@@ -744,6 +757,23 @@ final class SoftwareAdminController extends AdminController
             'logo'      => $d['logo'] ?? ($host ? 'https://www.google.com/s2/favicons?domain=' . $host . '&sz=64' : ''),
             'published' => $published ? 1 : 0,
         ]);
+    }
+
+    /** POST /admin/software/{id}/go-live — publish a prepared draft in one click (JSON). */
+    public function goLive(array $args = []): never
+    {
+        $this->requirePermission('software.manage');
+        Csrf::check($this->request);
+        $id = (int) ($args['id'] ?? 0);
+        $s = Software::find($id);
+        if ($s === null) {
+            $this->json(['ok' => false, 'message' => 'Not found.']);
+        }
+        Database::update('software', ['status' => 'published'], ['id' => $id]);
+        Seo::generateForSoftware($id);
+        Sitemap::generateAll();
+        $this->audit('software.golive', 'software', $id, $s['name']);
+        $this->json(['ok' => true, 'id' => $id, 'slug' => $s['slug']]);
     }
 
     /** GET /admin/publishing — a small publishing dashboard. */

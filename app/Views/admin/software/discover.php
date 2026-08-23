@@ -87,9 +87,10 @@ $today = gmdate('Y-m-d');
                     </div>
                     <p class="muted small disc-desc"><?= e($c['desc']) ?></p>
                     <div class="disc-actions">
-                        <button type="button" class="btn btn-sm btn-primary c-pub">⬇ Publish</button>
+                        <button type="button" class="btn btn-sm btn-primary c-draft" title="draft तैयार करें — बाद में review करके publish करें">📝 तैयार करें</button>
+                        <button type="button" class="btn btn-sm btn-ghost c-pub" title="अभी live publish करें">⚡ अभी</button>
                         <button type="button" class="btn btn-sm btn-ghost c-prev" title="publish से पहले देखें">👁</button>
-                        <?php if ($c['cross']): ?><button type="button" class="btn btn-sm btn-ghost c-all" title="चारों platforms पर">🌐 All 4</button><?php endif; ?>
+                        <?php if ($c['cross']): ?><button type="button" class="btn btn-sm btn-ghost c-all" title="चारों platforms पर live">🌐 All 4</button><?php endif; ?>
                         <span class="c-st muted small"></span>
                     </div>
                 </div>
@@ -113,6 +114,38 @@ $today = gmdate('Y-m-d');
         </div>
         <div id="imp-prog" style="display:flex;flex-direction:column;gap:6px;margin-top:10px"></div>
     </details>
+</section>
+
+<!-- Prepared drafts — review then publish -->
+<section style="margin-top:30px" id="drafts-sec">
+    <h3 style="margin:0 0 4px">📝 तैयार posts — review करके publish करें <span class="muted small">(<?= count($drafts) ?>)</span></h3>
+    <p class="muted small" style="margin:0 0 12px">ये draft में हैं (साइट पर live नहीं). Edit से जाँचें, फिर <strong>✅ Publish</strong> दबाएँ.</p>
+    <?php if (empty($drafts)): ?>
+        <p class="muted small" id="no-drafts">अभी कोई draft नहीं — ऊपर किसी app पर <strong>📝 तैयार करें</strong> दबाएँ.</p>
+    <?php endif; ?>
+    <div class="disc-grid" id="drafts-grid">
+        <?php foreach ($drafts as $r): ?>
+            <div class="disc-card draft-card" data-id="<?= (int) $r['id'] ?>">
+                <span class="badge b-draft">DRAFT</span>
+                <div class="disc-top" style="margin-top:12px">
+                    <div class="disc-logo"><?php if (!empty($r['logo'])): ?><img src="<?= e($r['logo']) ?>" alt="" loading="lazy"><?php else: ?><?= e(strtoupper(mb_substr($r['name'], 0, 1))) ?><?php endif; ?></div>
+                    <div style="min-width:0;flex:1">
+                        <strong style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><?= e($r['name']) ?>
+                            <?php if (!empty($r['version'])): ?><span class="ver">v<?= e($r['version']) ?></span><?php endif; ?>
+                        </strong>
+                        <span class="muted small"><?= e($r['operating_system'] ?: '—') ?></span>
+                    </div>
+                </div>
+                <p class="muted small disc-desc"><?= e(str_excerpt($r['short_description'] ?? '', 90)) ?></p>
+                <div class="disc-actions">
+                    <button type="button" class="btn btn-sm btn-primary d-go">✅ Publish</button>
+                    <a class="btn btn-sm btn-ghost" href="<?= e(base_url('/admin/software/' . $r['id'] . '/edit')) ?>">✎ Review</a>
+                    <a class="btn btn-sm btn-ghost" href="<?= e(base_url('/software/' . $r['slug'])) ?>" target="_blank" rel="noopener">👁 Preview</a>
+                    <span class="d-st muted small"></span>
+                </div>
+            </div>
+        <?php endforeach; ?>
+    </div>
 </section>
 
 <!-- F13: Recently published (with version) -->
@@ -153,7 +186,8 @@ $today = gmdate('Y-m-d');
     <span style="flex:1"></span>
     <button type="button" id="sel-clear" class="btn btn-sm btn-ghost">हटाएँ</button>
     <button type="button" id="sel-queue" class="btn btn-sm btn-ghost">🕒 Queue selected</button>
-    <button type="button" id="sel-pub" class="btn btn-sm btn-primary">⬇ Publish selected</button>
+    <button type="button" id="sel-pub" class="btn btn-sm btn-ghost">⚡ Publish selected</button>
+    <button type="button" id="sel-draft" class="btn btn-sm btn-primary">📝 तैयार करें</button>
 </div>
 
 <!-- F10: preview modal -->
@@ -201,6 +235,7 @@ $today = gmdate('Y-m-d');
 .badge{position:absolute;top:9px;left:10px;font-size:.6rem;font-weight:800;padding:2px 7px;border-radius:6px;font-family:ui-monospace,monospace;letter-spacing:.03em}
 .b-new{background:#4d63e6;color:#fff}
 .b-today{background:var(--brand);color:#fff}
+.b-draft{background:#c67f10;color:#fff}
 .disc-import summary{cursor:pointer;font-weight:600;padding:10px 12px;background:var(--surface);border:1px solid var(--border);border-radius:10px}
 .disc-import textarea{width:100%;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-family:ui-monospace,monospace;font-size:.86rem}
 .disc-actionbar{position:sticky;bottom:14px;z-index:40;display:flex;align-items:center;gap:8px;background:var(--text);color:var(--surface);border-radius:12px;padding:10px 16px;box-shadow:0 12px 30px rgba(0,0,0,.35);margin-top:16px}
@@ -232,15 +267,49 @@ $today = gmdate('Y-m-d');
         if (url) body.append('url', url);
         body.append('ai', o.ai); body.append('shot', o.shot);
         if (extra && extra.os) body.append('os', extra.os);
+        if (extra && extra.draft) body.append('draft', '1');
         return fetch(URL_PUBLISH, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body }).then(function (r) { return r.json(); });
     }
     function stMsg(el, res) {
         if (res.status === 'published' && res.id) {
+            if (res.draft) { el.innerHTML = '📝 <a href="' + EDIT_BASE + res.id + '/edit">तैयार — Review</a>'; return 'ok'; }
             el.innerHTML = '✅ <a href="' + EDIT_BASE + res.id + '/edit">Published' + (res.version ? ' v' + res.version : '') + '</a>';
             return 'ok';
         } else if (res.status === 'duplicate') { el.textContent = 'पहले से है'; return 'dup'; }
         el.textContent = 'official data नहीं मिला'; return 'miss';
     }
+
+    // Add a freshly-prepared draft to the drafts section, with a one-click Publish.
+    function addDraftCard(res, name, logoHtml) {
+        var grid = document.getElementById('drafts-grid'); if (!grid) return;
+        var nd = document.getElementById('no-drafts'); if (nd) nd.style.display = 'none';
+        var el = document.createElement('div');
+        el.className = 'disc-card draft-card'; el.setAttribute('data-id', res.id);
+        el.innerHTML = '<span class="badge b-draft">DRAFT</span>'
+            + '<div class="disc-top" style="margin-top:12px"><div class="disc-logo">' + (logoHtml || '') + '</div>'
+            + '<div style="min-width:0;flex:1"><strong>' + name + (res.version ? ' <span class="ver">v' + res.version + '</span>' : '') + '</strong></div></div>'
+            + '<div class="disc-actions"><button type="button" class="btn btn-sm btn-primary d-go">✅ Publish</button>'
+            + '<a class="btn btn-sm btn-ghost" href="' + EDIT_BASE + res.id + '/edit">✎ Review</a>'
+            + '<span class="d-st muted small"></span></div>';
+        grid.insertBefore(el, grid.firstChild);
+        wireDraft(el);
+    }
+    // One-click publish a prepared draft.
+    function wireDraft(card) {
+        var btn = card.querySelector('.d-go'); if (!btn) return;
+        var st = card.querySelector('.d-st'), id = card.getAttribute('data-id');
+        btn.addEventListener('click', function () {
+            btn.disabled = true; btn.textContent = '⏳'; st.textContent = 'Publishing…';
+            var body = new URLSearchParams(); body.append(C_NAME, C_VAL);
+            fetch(EDIT_BASE + id + '/go-live', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body })
+                .then(function (r) { return r.json(); })
+                .then(function (res) {
+                    if (res.ok) { st.innerHTML = '✅ Live'; btn.textContent = '✓ Done'; card.classList.add('pubbed'); }
+                    else { st.textContent = res.message || 'Failed'; btn.disabled = false; btn.textContent = '✅ Publish'; }
+                }).catch(function () { st.textContent = 'Failed'; btn.disabled = false; btn.textContent = '✅ Publish'; });
+        });
+    }
+    document.querySelectorAll('.draft-card').forEach(wireDraft);
 
     // ---- Card publish / preview / all-4 ----
     document.querySelectorAll('.cand').forEach(function (card) {
@@ -248,19 +317,27 @@ $today = gmdate('Y-m-d');
         var url = card.getAttribute('data-url') || '';
         var st = card.querySelector('.c-st');
         var pub = card.querySelector('.c-pub');
+        var draftBtn = card.querySelector('.c-draft');
 
-        function doPub(btn, os) {
+        function doPub(btn, os, draft) {
             btn.disabled = true; var t = btn.textContent; btn.textContent = '⏳';
-            st.textContent = 'Publishing…';
-            publishReq(name, url, { os: os }).then(function (res) {
+            st.textContent = draft ? 'तैयार कर रहे हैं…' : 'Publishing…';
+            publishReq(name, url, { os: os, draft: draft }).then(function (res) {
                 var r = stMsg(st, res);
-                if (r === 'ok' || r === 'dup') { card.classList.add('pubbed'); pub.textContent = '✓ Done'; suggestSimilar(card); }
-                else { btn.disabled = false; btn.textContent = t; }
+                if (r === 'ok' || r === 'dup') {
+                    card.classList.add('pubbed');
+                    if (draftBtn) draftBtn.textContent = '✓'; pub.textContent = '✓';
+                    if (draft && res.status === 'published' && res.id) {
+                        var logo = card.querySelector('.disc-logo'); addDraftCard(res, name, logo ? logo.innerHTML : '');
+                    }
+                    suggestSimilar(card);
+                } else { btn.disabled = false; btn.textContent = t; }
             }).catch(function () { st.textContent = 'Failed'; btn.disabled = false; btn.textContent = t; });
         }
-        pub.addEventListener('click', function () { doPub(pub, ''); });
+        if (draftBtn) draftBtn.addEventListener('click', function () { doPub(draftBtn, '', true); });
+        pub.addEventListener('click', function () { doPub(pub, '', false); });
         var all = card.querySelector('.c-all');
-        if (all) all.addEventListener('click', function () { doPub(all, 'windows,macos,ios,android'); });
+        if (all) all.addEventListener('click', function () { doPub(all, 'windows,macos,ios,android', false); });
 
         var prev = card.querySelector('.c-prev');
         if (prev) prev.addEventListener('click', function () { openPreview(card); });
@@ -302,16 +379,19 @@ $today = gmdate('Y-m-d');
     document.getElementById('sel-clear').addEventListener('click', function () {
         selected.clear(); document.querySelectorAll('.cand.sel').forEach(function (c) { c.classList.remove('sel'); }); bar.style.display = 'none';
     });
-    document.getElementById('sel-pub').addEventListener('click', function () {
+    function runSelected(btn, sel, label) {
         var cards = [].slice.call(document.querySelectorAll('.cand.sel'));
-        var btn = this; btn.disabled = true; var done = 0;
+        if (!cards.length) return;
+        btn.disabled = true;
         (function next(i) {
-            if (i >= cards.length) { btn.disabled = false; btn.textContent = '⬇ Publish selected'; return; }
+            if (i >= cards.length) { btn.disabled = false; btn.textContent = label; return; }
             btn.textContent = '⏳ ' + (i + 1) + '/' + cards.length;
-            cards[i].querySelector('.c-pub').click();
+            var b = cards[i].querySelector(sel); if (b) b.click();
             setTimeout(function () { next(i + 1); }, 1200);
         })(0);
-    });
+    }
+    document.getElementById('sel-pub').addEventListener('click', function () { runSelected(this, '.c-pub', '⚡ Publish selected'); });
+    document.getElementById('sel-draft').addEventListener('click', function () { runSelected(this, '.c-draft', '📝 तैयार करें'); });
     document.getElementById('sel-queue').addEventListener('click', function () {
         if (!selected.size) return;
         document.getElementById('qnames').value = Array.from(selected).join('\n');

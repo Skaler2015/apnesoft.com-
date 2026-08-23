@@ -104,6 +104,7 @@ $router->post('/admin/software/quick', [SoftwareAdminController::class, 'quickPu
 $router->get('/admin/software/{id}/edit', [SoftwareAdminController::class, 'edit']);
 $router->post('/admin/software/{id}/edit', [SoftwareAdminController::class, 'update']);
 $router->post('/admin/software/{id}/enhance', [\App\Controllers\Admin\AiController::class, 'enhanceOne']);
+$router->post('/admin/software/{id}/go-live', [SoftwareAdminController::class, 'goLive']);
 $router->post('/admin/software/{id}/action', [SoftwareAdminController::class, 'action']);
 
 $router->get('/admin/sources', [SourceController::class, 'index']);

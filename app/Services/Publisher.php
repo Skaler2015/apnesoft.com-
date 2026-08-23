@@ -20,7 +20,7 @@ final class Publisher
      * @return array{status:string, name:string, id?:int, slug?:string}
      *   status = published | duplicate | notfound
      */
-    public static function publish(string $name, ?string $url = null, ?string $osSlug = null, bool $withAi = true, ?bool $screenshot = null): array
+    public static function publish(string $name, ?string $url = null, ?string $osSlug = null, bool $withAi = true, ?bool $screenshot = null, string $status = 'published'): array
     {
         $name = trim($name);
         $url = $url !== null ? trim($url) : '';
@@ -42,6 +42,19 @@ final class Publisher
         $site = trim((string) ($d['official_website'] ?? $d['official_download_url'] ?? ''));
         if ($site !== '' && ($page = self::fetch($site)) !== null) {
             $d = SoftwareLookup::enrichFromPage($d, $page['html'], $page['url']);
+            // Build a fuller description from the real page when we don't have one.
+            if (mb_strlen((string) ($d['long_description'] ?? '')) < 200) {
+                $rich = FreeContent::build($page['html'], [
+                    'name'              => $d['name'] ?? '',
+                    'short_description' => $d['short_description'] ?? '',
+                    'long_description'  => $d['long_description'] ?? '',
+                    'price_type'        => $d['price_type'] ?? '',
+                    'operating_system'  => $d['operating_system'] ?? '',
+                ]);
+                if (!empty($rich['long_description'])) {
+                    $d['long_description'] = $rich['long_description'];
+                }
+            }
         }
 
         // Support publishing to several platforms at once (comma-separated slugs).
@@ -59,7 +72,7 @@ final class Publisher
             }
         }
 
-        $id = self::createFromDto($d, $osIds);
+        $id = self::createFromDto($d, $osIds, $status);
 
         // Capture a real website screenshot (free WordPress mShots) when enabled.
         $doShot = $screenshot ?? ((string) Settings::get('auto_screenshot', '0') === '1');
@@ -83,8 +96,8 @@ final class Publisher
         ];
     }
 
-    /** Create + publish one software from a lookup DTO; returns the new id. */
-    public static function createFromDto(array $d, array $osIds): int
+    /** Create one software from a lookup DTO; returns the new id. Status may be draft/review/published. */
+    public static function createFromDto(array $d, array $osIds, string $status = 'published'): int
     {
         $osLabel = $osIds ? Classifier::osLabel($osIds) : ($d['operating_system'] ?? null);
         $data = [
@@ -107,7 +120,7 @@ final class Publisher
         $data['trust_score']         = TrustScore::compute($data);
         $data['quality_score']       = TrustScore::quality($data);
         $data['verification_status'] = $data['trust_score'] >= 70 ? 'verified' : ($data['trust_score'] >= 40 ? 'review' : 'unverified');
-        $data['status']              = 'published';
+        $data['status']              = in_array($status, ['published', 'review', 'draft'], true) ? $status : 'published';
         Dedupe::ensureSchema();
         $data['dedupe_key']      = Dedupe::key((string) $data['name']);
         $data['slug']            = self::uniqueSlug(slugify((string) $data['name']));
