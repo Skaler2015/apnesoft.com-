@@ -241,9 +241,6 @@ $action = $action ?? base_url('/admin/software/new');
         <label>Logo URL<input name="logo" id="f-logo" value="<?= e($fv('logo')) ?>" placeholder="https://… (optional)"></label>
         <label>Logo — upload image<input type="file" name="logo_file" accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif"></label>
 
-        <!-- Demo video -->
-        <label class="col-2">🎥 Demo / YouTube video URL<input name="video_url" value="<?= e($fv('video_url')) ?>" placeholder="https://youtube.com/watch?v=… (optional)"></label>
-
         <!-- Screenshots -->
         <div class="col-2">
             <label style="margin-bottom:6px">📸 Screenshots — upload images (you can pick several)</label>
@@ -270,10 +267,8 @@ $action = $action ?? base_url('/admin/software/new');
             <textarea name="long_description" id="rt-src" hidden><?= e($fv('long_description')) ?></textarea>
         </div>
 
-        <!-- Features / Pros / Cons -->
+        <!-- Features -->
         <label class="col-2">⭐ Features <span class="muted small">(one per line)</span><textarea name="features" rows="4" placeholder="Fast downloads&#10;Auto captions&#10;Works offline"><?= e($featuresText ?? '') ?></textarea></label>
-        <label>✓ Pros <span class="muted small">(one per line)</span><textarea name="pros" rows="4" placeholder="Easy to use&#10;Free"><?= e($prosText ?? '') ?></textarea></label>
-        <label>✕ Cons <span class="muted small">(one per line)</span><textarea name="cons" rows="4" placeholder="Shows ads"><?= e($consText ?? '') ?></textarea></label>
 
         <!-- Tags -->
         <label class="col-2">🏷️ Tags <span class="muted small">(comma separated)</span><input name="tags" value="<?= e($tagsText ?? '') ?>" placeholder="video editor, free, offline"></label>
