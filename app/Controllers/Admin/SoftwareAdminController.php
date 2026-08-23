@@ -117,6 +117,18 @@ final class SoftwareAdminController extends AdminController
         } catch (\Throwable $e) {}
     }
 
+    /** Platform slug (windows/macos/ios/android) for a software row, else the open panel. */
+    private function platformOf(array $software): string
+    {
+        $os = mb_strtolower((string) ($software['operating_system'] ?? ''));
+        foreach (['windows' => 'windows', 'mac' => 'macos', 'android' => 'android', 'ios' => 'ios'] as $needle => $slug) {
+            if (str_contains($os, $needle)) {
+                return $slug;
+            }
+        }
+        return (string) Session::get('admin_platform', '');
+    }
+
     /** OS id for the currently-open platform panel, or 0. */
     private function panelOsId(): int
     {
@@ -434,13 +446,15 @@ final class SoftwareAdminController extends AdminController
         if (mb_strlen($name) < 2) {
             $this->json(['ok' => false, 'message' => 'Enter a category name.']);
         }
+        Category::ensureScope();
+        $panel = (string) Session::get('admin_platform', '') ?: null;
         $slug = slugify($name);
         $existing = Database::first('SELECT id, name FROM categories WHERE slug = :s', ['s' => $slug]);
         if ($existing) {
             $this->json(['ok' => true, 'id' => (int) $existing['id'], 'name' => $existing['name']]);
         }
-        Database::run('INSERT INTO categories (name, slug, status, sort_order) VALUES (:n, :s, "active", 100)',
-            ['n' => mb_substr($name, 0, 120), 's' => $slug]);
+        Database::run('INSERT INTO categories (name, slug, status, sort_order, os_slug) VALUES (:n, :s, "active", 100, :os)',
+            ['n' => mb_substr($name, 0, 120), 's' => $slug, 'os' => $panel]);
         $id = (int) Database::scalar('SELECT id FROM categories WHERE slug = :s', ['s' => $slug]);
         $this->audit('category.create', 'category', $id, $name);
         $this->json(['ok' => true, 'id' => $id, 'name' => $name]);
@@ -941,7 +955,7 @@ final class SoftwareAdminController extends AdminController
         ][$slug] ?? '';
         $this->render('admin/software/create', [
             'title'      => 'Add Software',
-            'categories' => Category::all(),
+            'categories' => Category::forPlatform($slug),
             'oss'        => Database::all('SELECT * FROM operating_systems ORDER BY sort_order'),
             'preOs'      => $preOs,
             'osVersions' => $this->osVersionOptions(),
@@ -1192,7 +1206,7 @@ final class SoftwareAdminController extends AdminController
             'mode'         => 'edit',
             's'            => $software,
             'action'       => base_url('/admin/software/' . $software['id'] . '/edit'),
-            'categories'   => Category::all(),
+            'categories'   => Category::forPlatform($this->platformOf($software), (int) ($software['category_id'] ?? 0) ?: null),
             'oss'          => Database::all('SELECT * FROM operating_systems ORDER BY sort_order'),
             'osVersions'   => $this->osVersionOptions(),
             'priceTypes'   => $this->priceTypeOptions(),

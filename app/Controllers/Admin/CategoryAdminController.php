@@ -14,12 +14,18 @@ final class CategoryAdminController extends AdminController
     public function index(array $args = []): never
     {
         $this->requirePermission('software.manage');
+        \App\Models\Category::ensureScope();
         $cats = Database::all(
-            'SELECT c.id, c.name, c.slug, c.status,
+            'SELECT c.id, c.name, c.slug, c.status, c.os_slug,
                     (SELECT COUNT(*) FROM software s WHERE s.category_id = c.id) AS cnt
-             FROM categories c ORDER BY c.name'
+             FROM categories c ORDER BY c.os_slug, c.name'
         );
-        $this->render('admin/categories/index', ['title' => 'Categories', 'cats' => $cats]);
+        $panel = \App\Controllers\Admin\PlatformController::current();
+        $this->render('admin/categories/index', [
+            'title' => 'Categories',
+            'cats'  => $cats,
+            'panelLabel' => $panel['label'] ?? null,
+        ]);
     }
 
     /** POST /admin/categories — add a category. */
@@ -32,10 +38,12 @@ final class CategoryAdminController extends AdminController
             Session::flash('err', 'Enter a category name.');
             $this->redirect(base_url('/admin/categories'));
         }
+        \App\Models\Category::ensureScope();
+        $panel = (string) Session::get('admin_platform', '') ?: null;
         $slug = slugify($name);
         if (!Database::scalar('SELECT id FROM categories WHERE slug = :s', ['s' => $slug])) {
-            Database::run('INSERT INTO categories (name, slug, status, sort_order) VALUES (:n, :s, "active", 100)',
-                ['n' => mb_substr($name, 0, 120), 's' => $slug]);
+            Database::run('INSERT INTO categories (name, slug, status, sort_order, os_slug) VALUES (:n, :s, "active", 100, :os)',
+                ['n' => mb_substr($name, 0, 120), 's' => $slug, 'os' => $panel]);
             $this->audit('category.create', 'category', null, $name);
             Session::flash('ok', 'Category "' . $name . '" added.');
         } else {

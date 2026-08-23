@@ -1,21 +1,25 @@
-<?php use App\Core\Csrf; /** @var array $cats */ ?>
+<?php use App\Core\Csrf; /** @var array $cats @var ?string $panelLabel */
+$osLabels = ['windows' => '🪟 Windows', 'macos' => '🍎 macOS', 'ios' => '📱 iOS', 'android' => '🤖 Android'];
+?>
 <div class="admin-edit-head">
     <a class="btn btn-sm btn-ghost" href="<?= e(base_url('/admin/software')) ?>">← Back</a>
     <h2 style="margin:0 0 0 4px">🗂 Manage categories</h2>
 </div>
 
+<div class="flash flash-ok" style="margin:0 0 14px"><span>📌</span><div>नई category <strong><?= e($panelLabel ?: 'current') ?></strong> panel में जुड़ेगी और सिर्फ़ उसी platform में दिखेगी. दूसरे platform के लिए वहाँ का panel खोलकर जोड़ें.</div></div>
+
 <form method="post" action="<?= e(base_url('/admin/categories')) ?>" class="admin-toolbar" style="margin-bottom:18px">
     <?= Csrf::field() ?>
-    <input name="name" placeholder="New category name…" maxlength="120" required style="flex:1;min-width:200px">
+    <input name="name" placeholder="New <?= e($panelLabel ?: '') ?> category name…" maxlength="120" required style="flex:1;min-width:200px">
     <button class="btn btn-primary" type="submit">➕ Add category</button>
 </form>
 
 <div class="admin-table-wrap">
 <table class="admin-table">
-    <thead><tr><th>Category</th><th>Slug</th><th style="text-align:center">Software</th><th style="text-align:right">Actions</th></tr></thead>
+    <thead><tr><th>Category</th><th>Platform</th><th>Slug</th><th style="text-align:center">Software</th><th style="text-align:right">Actions</th></tr></thead>
     <tbody>
     <?php if (empty($cats)): ?>
-        <tr><td colspan="4" class="muted">No categories yet — add one above.</td></tr>
+        <tr><td colspan="5" class="muted">No categories yet — add one above.</td></tr>
     <?php endif; ?>
     <?php foreach ($cats as $c): ?>
         <tr>
@@ -26,6 +30,7 @@
                     <button class="btn btn-xs btn-ghost" type="submit" title="Save name">💾</button>
                 </form>
             </td>
+            <td><span class="chip"><?= e($osLabels[$c['os_slug'] ?? ''] ?? ($c['os_slug'] ?: '— all')) ?></span></td>
             <td><code><?= e($c['slug']) ?></code></td>
             <td style="text-align:center"><span class="chip"><?= (int) $c['cnt'] ?></span></td>
             <td style="text-align:right">
