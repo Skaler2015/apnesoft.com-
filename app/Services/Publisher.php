@@ -114,8 +114,8 @@ final class Publisher
         return $id;
     }
 
-    /** Extract basic details from a software's official web page. */
-    public static function extractFromUrl(string $url): ?array
+    /** Fetch a page once; returns ['html'=>…, 'url'=>effective url] or null. */
+    public static function fetch(string $url): ?array
     {
         if (!preg_match('~^https?://~i', $url)) {
             $url = 'https://' . $url;
@@ -124,7 +124,22 @@ final class Publisher
         if ($resp['status'] < 200 || $resp['status'] >= 400 || $resp['body'] === '') {
             return null;
         }
-        $html = $resp['body'];
+        return ['html' => $resp['body'], 'url' => $resp['effective_url'] ?: $url];
+    }
+
+    /** Extract basic details from a software's official web page. */
+    public static function extractFromUrl(string $url): ?array
+    {
+        $page = self::fetch($url);
+        if ($page === null) {
+            return null;
+        }
+        return self::parseHtml($page['html'], $page['url']);
+    }
+
+    /** Parse basic facts out of an already-fetched HTML page. */
+    public static function parseHtml(string $html, string $url): ?array
+    {
         $meta = static function (string $pat) use ($html): string {
             return preg_match($pat, $html, $m) ? html_entity_decode(trim($m[1]), ENT_QUOTES | ENT_HTML5) : '';
         };
@@ -138,7 +153,7 @@ final class Publisher
             $desc = $meta('~<meta[^>]+property=["\']og:description["\'][^>]+content=["\']([^"\']+)~i');
         }
         $img = $meta('~<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)~i');
-        $host = (string) (parse_url($resp['effective_url'] ?: $url, PHP_URL_HOST) ?: '');
+        $host = (string) (parse_url($url, PHP_URL_HOST) ?: '');
         $devHost = preg_replace('~^www\.~', '', $host) ?? $host;
 
         $name = trim((string) (preg_split('~[|\x{2013}\x{2014}:\-]~u', $ogTitle ?: $title)[0] ?? ''));

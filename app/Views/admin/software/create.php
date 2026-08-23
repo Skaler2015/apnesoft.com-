@@ -19,9 +19,9 @@
                 <button type="button" id="ai-fill" class="btn btn-primary" title="Fill everything — links, long description, features, pros/cons, tags — using AI">✨ AI fill (full)</button>
             </div>
             <p id="autofill-status" class="muted small" style="margin-top:6px">
-                <strong>Auto-fill</strong> = basic details from free catalogues (no key). <strong>✨ AI fill</strong> = official details
-                <em>plus</em> a long description, features, pros/cons, tags &amp; requirements — needs your Anthropic API key in
-                <a href="<?= e(base_url('/admin/settings')) ?>">Settings</a>.
+                <strong>🔎 Auto-fill</strong> = details <em>plus</em> features, pros/cons, tags &amp; description built from real data — <strong>no key needed</strong>.
+                <strong>✨ AI fill</strong> = the same, but with a longer, better-written description (needs your Anthropic API key in
+                <a href="<?= e(base_url('/admin/settings')) ?>">Settings</a>).
             </p>
         </div>
 
@@ -183,6 +183,14 @@
         if (el) el.value = val;
         if (name === 'long_description') { var ed = document.getElementById('rt-ed'); if (ed) ed.innerText = val; }
     }
+    // Fill features / pros / cons / tags (arrays) — used by every free fill flow.
+    function fillRich(d) {
+        if (!d) return;
+        if (Array.isArray(d.features) && d.features.length) { var f = document.querySelector('[name="features"]'); if (f) f.value = d.features.join('\n'); }
+        if (Array.isArray(d.pros) && d.pros.length) { var p = document.querySelector('[name="pros"]'); if (p) p.value = d.pros.join('\n'); }
+        if (Array.isArray(d.cons) && d.cons.length) { var c = document.querySelector('[name="cons"]'); if (c) c.value = d.cons.join('\n'); }
+        if (Array.isArray(d.tags) && d.tags.length) set('tags', d.tags.join(', '));
+    }
 
     // ---- Add a category inline (popup) ----
     var catBtn = document.getElementById('cat-add-btn');
@@ -253,9 +261,10 @@
                 ['price_type','category_id'].forEach(function (k) {
                     if (d[k] !== undefined && d[k] !== null && d[k] !== '') { var el = document.querySelector('[name="' + k + '"]'); if (el) el.value = String(d[k]); }
                 });
+                fillRich(d);
                 // Note: operating systems keep the current panel's selection — we
                 // don't override them, so a Windows panel stays Windows.
-                statusEl.innerHTML = '✓ Filled from <strong>' + (d.source || 'catalogue') + '</strong>' + (d.match ? ' (' + d.match + '% match)' : '') + '. Review, then Add software.';
+                statusEl.innerHTML = '✓ Filled from <strong>' + (d.source || 'catalogue') + '</strong>' + (d.match ? ' (' + d.match + '% match)' : '') + '. Features, pros/cons &amp; tags added from real data. Review, then Add software.';
                 updatePreview();
             })
             .catch(function () { btn.disabled = false; btn.textContent = original; statusEl.textContent = 'Lookup failed — fill the form manually.'; });
@@ -283,7 +292,8 @@
                     var ce = document.getElementById('f-cat'); if (ce) ce.value = String(d.category_id);
                 }
                 if (!d.official_website) set('official_website', url);
-                urlStatus.innerHTML = '✓ Imported from the official page. Review the fields, then <strong>Add software</strong>. Tip: use ✨ AI fill to add features, pros/cons &amp; tags.';
+                fillRich(d);
+                urlStatus.innerHTML = '✓ Imported from the official page — including features, pros/cons &amp; tags built from the real page. Review, then <strong>Add software</strong>.';
                 updatePreview();
             })
             .catch(function () { urlBtn.disabled = false; urlBtn.textContent = original; urlStatus.textContent = 'Import failed — check the URL and try again.'; });

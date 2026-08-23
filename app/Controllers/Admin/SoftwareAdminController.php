@@ -30,6 +30,28 @@ final class SoftwareAdminController extends AdminController
         if ($data === null) {
             $this->json(['ok' => false, 'message' => 'No official details found — please fill the form manually.']);
         }
+        // Build free rich content (features / pros-cons / tags / long description) — no AI key needed.
+        $facts = [
+            'name'              => $data['name'] ?? $name,
+            'developer_name'    => $data['developer_name'] ?? '',
+            'short_description' => $data['short_description'] ?? '',
+            'long_description'  => $data['long_description'] ?? '',
+            'price_type'        => $data['price_type'] ?? '',
+            'license_type'      => $data['license_type'] ?? '',
+            'operating_system'  => $data['operating_system'] ?? '',
+            'category_name'     => !empty($data['category_id'])
+                ? (string) \App\Core\Database::scalar('SELECT name FROM categories WHERE id = :i', ['i' => (int) $data['category_id']])
+                : '',
+        ];
+        $site = trim((string) ($data['official_website'] ?? ''));
+        $rich = $site !== '' ? \App\Services\FreeContent::fromUrl($site, $facts) : \App\Services\FreeContent::fromFacts($facts);
+        if (!empty($rich['long_description'])) {
+            $data['long_description'] = $rich['long_description'];
+        }
+        $data['features'] = $rich['features'];
+        $data['pros']     = $rich['pros'];
+        $data['cons']     = $rich['cons'];
+        $data['tags']     = $rich['tags'];
         $this->json(['ok' => true, 'data' => $data]);
     }
 
@@ -309,12 +331,36 @@ final class SoftwareAdminController extends AdminController
         if ($url === '') {
             $this->json(['ok' => false, 'message' => 'Paste the official website URL first.']);
         }
-        $d = \App\Services\Publisher::extractFromUrl($url);
+        $page = \App\Services\Publisher::fetch($url);
+        if ($page === null) {
+            $this->json(['ok' => false, 'message' => 'Could not read that page — check the URL.']);
+        }
+        $d = \App\Services\Publisher::parseHtml($page['html'], $page['url']);
         if ($d === null) {
             $this->json(['ok' => false, 'message' => 'Could not read that page — check the URL.']);
         }
-        $d['category_id'] = Classifier::detectCategory((string) ($d['name'] ?? ''), (string) ($d['long_description'] ?? ''));
-        $this->json(['ok' => true, 'data' => array_filter($d, static fn($v) => $v !== null && $v !== '')]);
+        $catId = Classifier::detectCategory((string) ($d['name'] ?? ''), (string) ($d['long_description'] ?? ''));
+        $d['category_id'] = $catId;
+        // Build features / pros-cons / tags / long description from the real page — no AI key needed.
+        $rich = \App\Services\FreeContent::build($page['html'], [
+            'name'             => $d['name'] ?? '',
+            'developer_name'   => $d['developer_name'] ?? '',
+            'short_description' => $d['short_description'] ?? '',
+            'long_description' => $d['long_description'] ?? '',
+            'price_type'       => $d['price_type'] ?? '',
+            'license_type'     => $d['license_type'] ?? '',
+            'operating_system' => $d['operating_system'] ?? '',
+            'category_name'    => $catId ? (string) \App\Core\Database::scalar('SELECT name FROM categories WHERE id = :i', ['i' => $catId]) : '',
+        ]);
+        if (!empty($rich['long_description'])) {
+            $d['long_description'] = $rich['long_description'];
+        }
+        $out = array_filter($d, static fn($v) => $v !== null && $v !== '');
+        $out['features'] = $rich['features'];
+        $out['pros']     = $rich['pros'];
+        $out['cons']     = $rich['cons'];
+        $out['tags']     = $rich['tags'];
+        $this->json(['ok' => true, 'data' => $out]);
     }
 
     /** POST /admin/software/category — create a category inline; returns JSON. */
