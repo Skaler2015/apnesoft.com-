@@ -33,17 +33,38 @@ final class SoftwareAdminController extends AdminController
         $this->json(['ok' => true, 'data' => $data]);
     }
 
+    /** Make sure the iOS platform row exists (older installs lack it). */
+    private function ensureIos(): void
+    {
+        try {
+            Database::run("INSERT IGNORE INTO operating_systems (name, slug, icon, sort_order) VALUES ('iOS','ios','',5)");
+        } catch (\Throwable $e) {}
+    }
+
+    /** OS id for the currently-open platform panel, or 0. */
+    private function panelOsId(): int
+    {
+        $slug = (string) Session::get('admin_platform', '');
+        if ($slug === '') {
+            return 0;
+        }
+        return (int) (Database::scalar('SELECT id FROM operating_systems WHERE slug = :s', ['s' => $slug]) ?: 0);
+    }
+
     /** GET /admin/software/new — blank add-software form. */
     public function create(array $args = []): never
     {
         $this->requirePermission('software.manage');
-        $preOs = (int) (Database::scalar('SELECT id FROM operating_systems WHERE slug = :s',
-            ['s' => $this->request->str('os')]) ?: 0);
+        $this->ensureIos();
+        // Pre-select the open panel's platform (or an explicit ?os=).
+        $slug = $this->request->str('os') ?: (string) Session::get('admin_platform', '');
+        $preOs = (int) (Database::scalar('SELECT id FROM operating_systems WHERE slug = :s', ['s' => $slug]) ?: 0);
         $this->render('admin/software/create', [
             'title'      => 'Add Software',
             'categories' => Category::all(),
             'oss'        => Database::all('SELECT * FROM operating_systems ORDER BY sort_order'),
             'preOs'      => $preOs,
+            'panelLabel' => \App\Controllers\Admin\PlatformController::current()['label'] ?? null,
         ]);
     }
 
@@ -59,8 +80,14 @@ final class SoftwareAdminController extends AdminController
             $this->redirect(base_url('/admin/software/new'));
         }
 
-        // Operating systems (checkboxes) -> label + m2m rows.
+        // Operating systems (checkboxes) -> label + m2m rows. When none are
+        // ticked, default to the platform panel the admin is in, so the software
+        // publishes to THAT platform's site only (not the others).
+        $this->ensureIos();
         $osIds = array_filter(array_map('intval', (array) $this->request->input('os', [])));
+        if (!$osIds && ($panelOs = $this->panelOsId()) > 0) {
+            $osIds = [$panelOs];
+        }
         $osLabel = $osIds ? Classifier::osLabel($osIds) : $this->request->str('operating_system');
 
         $data = [
