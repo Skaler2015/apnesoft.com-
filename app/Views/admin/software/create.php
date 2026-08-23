@@ -107,13 +107,18 @@
         <label>Official website<input name="official_website" value="<?= old('official_website') ?>" placeholder="https://…"></label>
         <label>Developer website<input name="developer_website" value="<?= old('developer_website') ?>" placeholder="https://…"></label>
         <label class="col-2">Official download URL<input name="official_download_url" value="<?= old('official_download_url') ?>" placeholder="https://… (official / authorized source only)"></label>
-        <label>Price type
-            <select name="price_type" id="f-price">
-                <?php foreach (['','free','open_source','freemium','paid','trial'] as $p): ?>
-                    <option value="<?= $p ?>"><?= $p ?: '—' ?></option>
-                <?php endforeach; ?>
-            </select>
-        </label>
+        <div>
+            <label style="margin-bottom:6px">Price type</label>
+            <div style="display:flex;gap:8px">
+                <select name="price_type" id="f-price" style="flex:1">
+                    <option value="">—</option>
+                    <?php foreach (($priceTypes ?? []) as $pv => $pl): ?>
+                        <option value="<?= e($pv) ?>" <?= old('price_type') === $pv ? 'selected' : '' ?>><?= e($pl) ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <button type="button" id="price-add-btn" class="btn btn-ghost" title="Add a new price type">+ New</button>
+            </div>
+        </div>
         <div>
             <label style="margin-bottom:6px">Category</label>
             <div style="display:flex;gap:8px">
@@ -194,6 +199,18 @@
         <span class="muted small">Trust score is calculated automatically. Only add official / authorized sources.</span>
     </div>
 </form>
+
+<div id="price-modal" style="display:none;position:fixed;inset:0;background:rgba(10,12,20,.6);align-items:center;justify-content:center;z-index:1000;padding:20px">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;max-width:420px;width:100%;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,.4)">
+        <h3 style="margin:0 0 12px;font-size:1.1rem">➕ New price type</h3>
+        <input id="price-name" placeholder="e.g. Subscription" style="width:100%" maxlength="40">
+        <div id="price-msg" class="muted small" style="margin-top:6px">It gets added to the list and selected automatically.</div>
+        <div style="display:flex;gap:10px;margin-top:16px;justify-content:flex-end">
+            <button type="button" id="price-cancel" class="btn btn-ghost btn-sm">Cancel</button>
+            <button type="button" id="price-save" class="btn btn-primary btn-sm">Add price type</button>
+        </div>
+    </div>
+</div>
 
 <div id="osv-modal" style="display:none;position:fixed;inset:0;background:rgba(10,12,20,.6);align-items:center;justify-content:center;z-index:1000;padding:20px">
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;max-width:420px;width:100%;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,.4)">
@@ -306,6 +323,41 @@
                     closeCat();
                 })
                 .catch(function () { catSave.disabled = false; catMsg.textContent = 'Failed — try again.'; });
+        });
+    }
+
+    // ---- Add a price type inline (popup) ----
+    var priceBtn = document.getElementById('price-add-btn');
+    var priceModal = document.getElementById('price-modal');
+    var priceSel = document.getElementById('f-price');
+    if (priceBtn && priceModal && priceSel) {
+        var priceName = document.getElementById('price-name');
+        var priceMsg = document.getElementById('price-msg');
+        var priceSave = document.getElementById('price-save');
+        var pi = document.querySelector('.admin-form input[name="_csrf"]');
+        var P_NAME = pi ? pi.name : '_csrf', P_VAL = pi ? pi.value : '';
+        function closePrice() { priceModal.style.display = 'none'; }
+        priceBtn.addEventListener('click', function () { priceModal.style.display = 'flex'; priceName.value = ''; priceMsg.textContent = 'It gets added to the list and selected automatically.'; priceName.focus(); });
+        document.getElementById('price-cancel').addEventListener('click', closePrice);
+        priceModal.addEventListener('click', function (e) { if (e.target === priceModal) closePrice(); });
+        priceName.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); priceSave.click(); } });
+        priceSave.addEventListener('click', function () {
+            var n = priceName.value.trim();
+            if (n.length < 2) { priceMsg.textContent = 'Enter a price type.'; return; }
+            priceSave.disabled = true; priceMsg.textContent = 'Adding…';
+            var body = new URLSearchParams(); body.append(P_NAME, P_VAL); body.append('name', n);
+            fetch(<?= json_encode(base_url('/admin/software/price-type')) ?>, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body })
+                .then(function (r) { return r.json(); })
+                .then(function (res) {
+                    priceSave.disabled = false;
+                    if (!res.ok) { priceMsg.textContent = res.message || 'Failed.'; return; }
+                    var opt = priceSel.querySelector('option[value="' + res.value + '"]');
+                    if (!opt) { opt = document.createElement('option'); opt.value = res.value; opt.textContent = res.label; priceSel.appendChild(opt); }
+                    priceSel.value = res.value;
+                    closePrice();
+                    if (typeof updatePreview === 'function') updatePreview();
+                })
+                .catch(function () { priceSave.disabled = false; priceMsg.textContent = 'Failed — try again.'; });
         });
     }
 

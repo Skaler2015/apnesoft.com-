@@ -466,6 +466,67 @@ final class SoftwareAdminController extends AdminController
         }
     }
 
+    /** Price-type options (value => label): built-in + any the admin added. */
+    private function priceTypeOptions(): array
+    {
+        $out = [
+            'free'        => 'Free',
+            'open_source' => 'Open source',
+            'freemium'    => 'Freemium',
+            'paid'        => 'Paid',
+            'trial'       => 'Trial',
+        ];
+        $raw = (string) \App\Core\Settings::get('price_types', '');
+        if ($raw !== '') {
+            $decoded = json_decode($raw, true);
+            if (is_array($decoded)) {
+                foreach ($decoded as $label) {
+                    $label = trim((string) $label);
+                    $val = slugify($label);
+                    if ($val !== '' && !isset($out[$val])) {
+                        $out[$val] = $label;
+                    }
+                }
+            }
+        }
+        return $out;
+    }
+
+    /** Remember a newly-used custom price type so it stays in the dropdown. */
+    private function rememberPriceType(string $label): array
+    {
+        $label = trim($label);
+        $val = slugify($label);
+        $options = $this->priceTypeOptions();
+        if ($val === '' || isset($options[$val])) {
+            return ['value' => $val, 'label' => $options[$val] ?? $label];
+        }
+        $custom = [];
+        $raw = (string) \App\Core\Settings::get('price_types', '');
+        if ($raw !== '') {
+            $decoded = json_decode($raw, true);
+            if (is_array($decoded)) {
+                $custom = array_map('strval', $decoded);
+            }
+        }
+        $custom[] = mb_substr($label, 0, 40);
+        \App\Core\Settings::set('price_types', array_slice(array_values(array_unique($custom)), 0, 40), 'software', 'json');
+        return ['value' => $val, 'label' => mb_substr($label, 0, 40)];
+    }
+
+    /** POST /admin/software/price-type — add a price type; returns value+label. */
+    public function priceType(array $args = []): never
+    {
+        $this->requirePermission('software.manage');
+        Csrf::check($this->request);
+        $name = trim($this->request->str('name'));
+        if (mb_strlen($name) < 2) {
+            $this->json(['ok' => false, 'message' => 'Enter a price type.']);
+        }
+        $added = $this->rememberPriceType($name);
+        $this->json(['ok' => true, 'value' => $added['value'], 'label' => $added['label']]);
+    }
+
     /** POST /admin/software/os-version — add an OS version to the dropdown; returns the list. */
     public function osVersion(array $args = []): never
     {
@@ -609,6 +670,7 @@ final class SoftwareAdminController extends AdminController
             'oss'        => Database::all('SELECT * FROM operating_systems ORDER BY sort_order'),
             'preOs'      => $preOs,
             'osVersions' => $this->osVersionOptions(),
+            'priceTypes' => $this->priceTypeOptions(),
             'panelGroup' => $panelGroup,
             'panelLabel' => \App\Controllers\Admin\PlatformController::current()['label'] ?? null,
         ]);

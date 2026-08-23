@@ -94,6 +94,7 @@ $router->post('/admin/software/ai-category', [SoftwareAdminController::class, 'a
 $router->post('/admin/software/trending', [SoftwareAdminController::class, 'trending']);
 $router->post('/admin/software/category', [SoftwareAdminController::class, 'addCategory']);
 $router->post('/admin/software/os-version', [SoftwareAdminController::class, 'osVersion']);
+$router->post('/admin/software/price-type', [SoftwareAdminController::class, 'priceType']);
 $router->get('/admin/publishing', [SoftwareAdminController::class, 'dashboard']);
 $router->get('/admin/software/new', [SoftwareAdminController::class, 'create']);
 $router->post('/admin/software/new', [SoftwareAdminController::class, 'store']);
