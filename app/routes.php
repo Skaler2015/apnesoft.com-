@@ -78,6 +78,7 @@ $router->get('/admin/ai', [\App\Controllers\Admin\AiController::class, 'index'])
 $router->post('/admin/ai/start', [\App\Controllers\Admin\AiController::class, 'start']);
 
 $router->get('/admin/software', [SoftwareAdminController::class, 'index']);
+$router->get('/admin/software/lookup', [SoftwareAdminController::class, 'lookup']);
 $router->get('/admin/software/new', [SoftwareAdminController::class, 'create']);
 $router->post('/admin/software/new', [SoftwareAdminController::class, 'store']);
 $router->get('/admin/software/{id}/edit', [SoftwareAdminController::class, 'edit']);

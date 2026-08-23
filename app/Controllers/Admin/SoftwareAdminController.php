@@ -18,6 +18,21 @@ use App\Services\TrustScore;
 
 final class SoftwareAdminController extends AdminController
 {
+    /** GET /admin/software/lookup?name=… — free auto-fill from public catalogues. */
+    public function lookup(array $args = []): never
+    {
+        $this->requirePermission('software.manage');
+        $name = trim($this->request->str('name'));
+        if (mb_strlen($name) < 2) {
+            $this->json(['ok' => false, 'message' => 'Please type a software name first.']);
+        }
+        $data = \App\Services\SoftwareLookup::search($name);
+        if ($data === null) {
+            $this->json(['ok' => false, 'message' => 'No official details found — please fill the form manually.']);
+        }
+        $this->json(['ok' => true, 'data' => $data]);
+    }
+
     /** GET /admin/software/new — blank add-software form. */
     public function create(array $args = []): never
     {

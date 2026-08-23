@@ -7,7 +7,17 @@
 <form method="post" action="<?= e(base_url('/admin/software/new')) ?>" class="admin-form">
     <?= Csrf::field() ?>
     <div class="form-grid">
-        <label class="col-2">Name *<input name="name" value="<?= old('name') ?>" required autofocus></label>
+        <div class="col-2">
+            <label style="margin-bottom:6px">Name *</label>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <input name="name" value="<?= old('name') ?>" required autofocus style="flex:1;min-width:220px">
+                <button type="button" id="ai-autofill" class="btn btn-primary">🔎 Auto-fill details</button>
+            </div>
+            <p id="autofill-status" class="muted small" style="margin-top:6px">
+                Type the name and click <strong>Auto-fill</strong> — we fetch the developer, official website,
+                download link, version, licence &amp; description from free official catalogues (winget, Chocolatey, GitHub). No API key needed.
+            </p>
+        </div>
         <label>Developer<input name="developer_name" value="<?= old('developer_name') ?>"></label>
         <label>Version<input name="version" value="<?= old('version') ?>" placeholder="e.g. 1.2.3"></label>
         <label>Official website<input name="official_website" value="<?= old('official_website') ?>" placeholder="https://…"></label>
@@ -66,3 +76,56 @@
         <span class="muted small">Trust score is calculated automatically from the source, HTTPS and official URLs. Only add official / authorized sources.</span>
     </div>
 </form>
+
+<script>
+(function () {
+    var btn = document.getElementById('ai-autofill');
+    if (!btn) return;
+    var nameInput = document.querySelector('input[name="name"]');
+    var statusEl = document.getElementById('autofill-status');
+
+    function set(name, val) {
+        if (val === undefined || val === null || val === '') return;
+        var el = document.querySelector('[name="' + name + '"]');
+        if (el) el.value = val;
+    }
+
+    btn.addEventListener('click', function () {
+        var name = (nameInput.value || '').trim();
+        if (name.length < 2) { statusEl.textContent = 'Type a software name first.'; nameInput.focus(); return; }
+        var original = btn.textContent;
+        btn.disabled = true; btn.textContent = '⏳ Fetching…';
+        statusEl.textContent = 'Searching official catalogues…';
+
+        fetch(<?= json_encode(base_url('/admin/software/lookup')) ?> + '?name=' + encodeURIComponent(name))
+            .then(function (r) { return r.json(); })
+            .then(function (res) {
+                btn.disabled = false; btn.textContent = original;
+                if (!res.ok) { statusEl.textContent = res.message || 'Nothing found — fill the form manually.'; return; }
+                var d = res.data || {};
+                ['name', 'developer_name', 'developer_website', 'official_website', 'official_download_url',
+                 'version', 'license_type', 'architecture', 'file_size', 'logo',
+                 'short_description', 'long_description'].forEach(function (k) { set(k, d[k]); });
+                ['price_type', 'is_open_source', 'category_id'].forEach(function (k) {
+                    if (d[k] !== undefined && d[k] !== null && d[k] !== '') {
+                        var el = document.querySelector('[name="' + k + '"]');
+                        if (el) el.value = String(d[k]);
+                    }
+                });
+                if (d.operating_system) {
+                    var os = String(d.operating_system).toLowerCase();
+                    document.querySelectorAll('input[name="os[]"]').forEach(function (cb) {
+                        var lbl = (cb.parentNode.textContent || '').trim().toLowerCase();
+                        if (lbl && os.indexOf(lbl) !== -1) cb.checked = true;
+                    });
+                }
+                statusEl.innerHTML = '✓ Filled from <strong>' + (d.source || 'catalogue') + '</strong>' +
+                    (d.match ? ' (' + d.match + '% name match)' : '') + '. Review the details, then click <strong>Add software</strong>.';
+            })
+            .catch(function () {
+                btn.disabled = false; btn.textContent = original;
+                statusEl.textContent = 'Lookup failed — please fill the form manually.';
+            });
+    });
+})();
+</script>
