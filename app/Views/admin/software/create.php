@@ -50,9 +50,9 @@
         <div class="col-2">
             <label style="margin-bottom:6px">Operating systems</label>
             <div style="display:flex;gap:16px;flex-wrap:wrap">
-                <?php foreach ($oss as $os): ?>
+                <?php $preOs = $preOs ?? 0; foreach ($oss as $os): ?>
                     <label class="check" style="font-weight:400">
-                        <input type="checkbox" name="os[]" value="<?= (int) $os['id'] ?>"> <?= e($os['name']) ?>
+                        <input type="checkbox" name="os[]" value="<?= (int) $os['id'] ?>" <?= (int) $os['id'] === (int) $preOs ? 'checked' : '' ?>> <?= e($os['name']) ?>
                     </label>
                 <?php endforeach; ?>
             </div>

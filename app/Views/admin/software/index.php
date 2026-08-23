@@ -1,8 +1,23 @@
-<?php use App\Core\Csrf; use App\Core\View; ?>
+<?php use App\Core\Csrf; use App\Core\View; $os = $os ?? ''; $counts = $counts ?? []; ?>
 <div class="admin-toolbar">
-    <a class="btn btn-sm btn-primary" href="<?= e(base_url('/admin/software/new')) ?>">+ Add Software</a>
+    <a class="btn btn-sm btn-primary" href="<?= e(base_url('/admin/software/new' . ($os ? '?os=' . $os : ''))) ?>">+ Add Software</a>
+</div>
+
+<div class="plat-tabs" style="display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 14px">
+    <?php
+    $tabs = ['' => 'All', 'windows' => '🪟 Windows', 'macos' =>  'Mac', 'ios' =>  'iOS', 'android' => '🤖 Android'];
+    foreach ($tabs as $slug => $label):
+        $active = $os === $slug;
+        $count = $slug === '' ? ($counts['all'] ?? null) : ($counts[$slug] ?? null);
+        $url = base_url('/admin/software' . ($slug ? '?os=' . $slug : ''));
+    ?>
+        <a href="<?= e($url) ?>" class="btn btn-sm <?= $active ? 'btn-primary' : 'btn-ghost' ?>">
+            <?= e($label) ?><?php if ($count !== null): ?> <span class="muted">(<?= number_format($count) ?>)</span><?php endif; ?>
+        </a>
+    <?php endforeach; ?>
 </div>
 <form method="get" class="admin-toolbar" action="<?= e(base_url('/admin/software')) ?>">
+    <input type="hidden" name="os" value="<?= e($os) ?>">
     <input type="search" name="q" value="<?= e($q) ?>" placeholder="Search name / developer…">
     <select name="status" onchange="this.form.submit()">
         <?php foreach (['' => 'All statuses', 'published' => 'Published', 'review' => 'Review', 'draft' => 'Draft', 'rejected' => 'Rejected', 'disabled' => 'Disabled'] as $k => $v): ?>

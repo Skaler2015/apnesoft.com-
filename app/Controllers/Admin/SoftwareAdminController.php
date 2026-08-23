@@ -37,10 +37,13 @@ final class SoftwareAdminController extends AdminController
     public function create(array $args = []): never
     {
         $this->requirePermission('software.manage');
+        $preOs = (int) (Database::scalar('SELECT id FROM operating_systems WHERE slug = :s',
+            ['s' => $this->request->str('os')]) ?: 0);
         $this->render('admin/software/create', [
             'title'      => 'Add Software',
             'categories' => Category::all(),
             'oss'        => Database::all('SELECT * FROM operating_systems ORDER BY sort_order'),
+            'preOs'      => $preOs,
         ]);
     }
 
@@ -150,6 +153,7 @@ final class SoftwareAdminController extends AdminController
 
         $status = $this->request->str('status');
         $q = $this->request->str('q');
+        $os = $this->request->str('os'); // platform tab: windows|macos|ios|android
         $where = ['1=1'];
         $params = [];
         if ($status !== '') {
@@ -161,12 +165,26 @@ final class SoftwareAdminController extends AdminController
             $params['q'] = '%' . $q . '%';
             $params['q2'] = '%' . $q . '%';
         }
+        $osLike = ['windows' => '%windows%', 'macos' => '%mac%', 'ios' => '%ios%', 'android' => '%android%'];
+        if (isset($osLike[$os])) {
+            $where[] = 'operating_system LIKE :os';
+            $params['os'] = $osLike[$os];
+        }
         $page = $this->page();
         $offset = ($page - 1) * 30;
         $whereSql = implode(' AND ', $where);
 
         $items = Database::all("SELECT * FROM software WHERE $whereSql ORDER BY updated_at DESC LIMIT 30 OFFSET $offset", $params);
         $total = (int) Database::scalar("SELECT COUNT(*) FROM software WHERE $whereSql", $params);
+
+        // Per-platform counts for the tab labels.
+        $counts = [];
+        foreach ($osLike as $slug => $like) {
+            $counts[$slug] = (int) Database::scalar(
+                'SELECT COUNT(*) FROM software WHERE operating_system LIKE :l', ['l' => $like]
+            );
+        }
+        $counts['all'] = (int) Database::scalar('SELECT COUNT(*) FROM software');
 
         $this->render('admin/software/index', [
             'title'   => 'Software',
@@ -176,6 +194,8 @@ final class SoftwareAdminController extends AdminController
             'perPage' => 30,
             'status'  => $status,
             'q'       => $q,
+            'os'      => $os,
+            'counts'  => $counts,
         ]);
     }
 

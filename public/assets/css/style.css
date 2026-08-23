@@ -117,6 +117,34 @@ h1,h2,h3,h4{line-height:1.2;margin:0 0 .4em}
 .brand-plat{font-size:.62em;font-weight:800;text-transform:uppercase;letter-spacing:.04em;
   background:color-mix(in srgb,var(--brand) 16%,transparent);color:var(--brand);
   padding:.2em .5em;border-radius:5px;vertical-align:middle;margin-left:2px}
+/* FileHorse-style directory homepage */
+.fh-band{background:linear-gradient(90deg,var(--brand),var(--brand-2));padding:13px 0;margin-bottom:16px}
+.fh-band h1{color:#fff;font-size:1.1rem;font-weight:700;margin:0}
+.fh-wrap{padding-bottom:44px}
+.fh-top{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
+.fh-box,.fh-cat{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 15px}
+.fh-h{font-size:.98rem;margin:0 0 8px;padding-bottom:7px;border-bottom:2px solid var(--brand);color:var(--text)}
+.fh-latest,.fh-cat ul{list-style:none;margin:0;padding:0}
+.fh-latest li{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:.85rem}
+.fh-when{color:var(--muted);font-size:.72rem;white-space:nowrap;min-width:46px}
+.fh-ico{width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:700;color:var(--brand);background:var(--surface-2);border-radius:5px;overflow:hidden;flex:0 0 auto}
+.fh-ico img{width:22px;height:22px;object-fit:contain}
+.fh-popular{margin:0;padding:0 0 0 1.5em;counter-reset:none}
+.fh-popular li{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:.85rem}
+.fh-popular li a,.fh-latest li a{color:var(--text);text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fh-popular li a:hover,.fh-latest li a:hover,.fh-cat li a:hover .fh-name{color:var(--brand);text-decoration:underline}
+.fh-more{display:inline-block;margin-top:9px;font-size:.8rem;color:var(--brand);font-weight:600;text-decoration:none}
+.fh-more:hover{text-decoration:underline}
+.fh-cats{display:grid;grid-template-columns:repeat(3,1fr);gap:15px}
+.fh-cat-h{font-size:.9rem;margin:0 0 7px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+.fh-cat-h a{color:var(--brand);text-decoration:none}
+.fh-cat li{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--surface-2)}
+.fh-cat li:last-child{border-bottom:0}
+.fh-cat li a{display:flex;flex-direction:column;line-height:1.25;min-width:0;text-decoration:none}
+.fh-name{font-size:.83rem;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fh-sub{font-size:.7rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media(max-width:900px){.fh-cats{grid-template-columns:repeat(2,1fr)}.fh-top{grid-template-columns:1fr}}
+@media(max-width:560px){.fh-cats{grid-template-columns:1fr}}
 /* Directory-style licence tags (FREE / OPEN SOURCE / TRIAL …) */
 .license-badge{display:inline-block;font-size:.68rem;font-weight:800;letter-spacing:.04em;
   text-transform:uppercase;padding:.28em .6em;border-radius:6px;line-height:1;white-space:nowrap}

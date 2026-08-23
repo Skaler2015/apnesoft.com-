@@ -1,89 +1,75 @@
 <?php
-use App\Core\View;
+/** @var array $latest @var array $popular @var array $categorySections @var string $platform */
+$icon = static function (array $it): string {
+    if (!empty($it['logo'])) {
+        return '<img src="' . e($it['logo']) . '" alt="" loading="lazy" width="22" height="22">';
+    }
+    return '<span>' . e(strtoupper(mb_substr($it['name'], 0, 1))) . '</span>';
+};
 ?>
-<section class="hero">
-    <div class="container hero-inner">
-        <h1>Find the Right Software for Your PC</h1>
-        <p class="hero-sub">Discover, compare and download trusted software from official sources.</p>
-        <form class="hero-search" action="<?= e(base_url('/search')) ?>" method="get" role="search">
-            <input type="search" name="q" placeholder="Search software, category or what you need…" aria-label="Search" autocomplete="off" data-suggest>
-            <button type="submit" class="btn btn-primary">Search Software</button>
-            <div class="suggest-box" data-suggest-box hidden></div>
-        </form>
-        <div class="hero-examples">
-            <span class="muted small">Try:</span>
-            <?php foreach (['PDF editor', 'Video editor', 'Screen recorder', 'Antivirus', 'Windows cleaner', 'Free photo editor'] as $ex): ?>
-                <a class="pill" href="<?= e(base_url('/search?q=' . urlencode($ex))) ?>"><?= e($ex) ?></a>
-            <?php endforeach; ?>
-        </div>
-        <div class="hero-cta">
-            <a class="btn btn-ghost" href="<?= e(base_url('/software-finder')) ?>">✨ Find My Software</a>
-        </div>
-    </div>
-</section>
-
-<?php if (!empty($trending)): ?>
-<section class="home-section trending">
+<section class="fh-band">
     <div class="container">
-        <div class="section-head"><h2>Trending Categories</h2></div>
-        <div class="chip-row">
-            <?php foreach ($trending as $c): ?>
-                <a class="cat-pill" href="<?= e(base_url('/category/' . $c['slug'])) ?>">
-                    <?= e($c['name']) ?> <span class="muted small"><?= (int) ($c['software_count'] ?? 0) ?></span>
-                </a>
-            <?php endforeach; ?>
-        </div>
+        <h1>Download &amp; Discover the Best <?= e($platform ?: '') ?> Software, Apps &amp; Games</h1>
     </div>
 </section>
-<?php endif; ?>
 
-<?= View::partial('partials/section', ['heading' => 'Popular Software', 'items' => $popular, 'moreUrl' => '/software?sort=popular']) ?>
-<?= View::partial('partials/section', ['heading' => 'Recently Updated', 'items' => $recentlyUpdated, 'moreUrl' => '/software?sort=updated']) ?>
-<?= View::partial('partials/section', ['heading' => 'New Software', 'items' => $newest, 'moreUrl' => '/new-software']) ?>
+<div class="container fh-wrap">
+    <?php if ($ad = setting('ad_header')): ?><div class="ad ad-header"><?= $ad ?></div><?php endif; ?>
 
-<?php if (!empty($categorySections)): ?>
-<div class="container"><div class="section-head"><h2>Popular Categories</h2><a class="see-all" href="<?= e(base_url('/categories')) ?>">Browse all →</a></div></div>
-<?php foreach ($categorySections as $sec): ?>
-    <?= View::partial('partials/section', [
-        'heading' => $sec['category']['name'],
-        'items'   => $sec['items'],
-        'moreUrl' => '/category/' . $sec['category']['slug'],
-    ]) ?>
-<?php endforeach; ?>
-<?php endif; ?>
+    <div class="fh-top">
+        <section class="fh-box">
+            <h2 class="fh-h">Latest Software Releases</h2>
+            <ul class="fh-latest">
+                <?php foreach ($latest as $s): $d = $s['last_updated'] ?? $s['discovered_at'] ?? null; ?>
+                    <li>
+                        <span class="fh-when"><?= $d ? e(date('d M', strtotime((string) $d))) : '' ?></span>
+                        <span class="fh-ico"><?= $icon($s) ?></span>
+                        <a href="<?= e(base_url('/software/' . $s['slug'])) ?>"><?= e($s['name']) ?><?= !empty($s['version']) ? ' ' . e($s['version']) : '' ?></a>
+                    </li>
+                <?php endforeach; ?>
+                <?php if (empty($latest)): ?><li class="muted small">No software yet.</li><?php endif; ?>
+            </ul>
+            <a class="fh-more" href="<?= e(base_url('/new-software')) ?>">More Latest Software »</a>
+        </section>
 
-<?php if ($ad = setting('ad_incontent')): ?><div class="ad ad-incontent container"><?= $ad ?></div><?php endif; ?>
-
-<?= View::partial('partials/section', ['heading' => 'Free Software', 'items' => $free, 'moreUrl' => '/software?price=free']) ?>
-<?= View::partial('partials/section', ['heading' => 'Open Source', 'items' => $openSource, 'moreUrl' => '/software?open_source=1']) ?>
-<?= View::partial('partials/section', ['heading' => 'Best for Low-End Devices', 'items' => $lowEnd, 'moreUrl' => '/low-end-pc', 'subtitle' => 'Lightweight apps that run smoothly on modest hardware']) ?>
-
-<?php if (!empty($updates)): ?>
-<section class="home-section">
-    <div class="container">
-        <div class="section-head"><div><h2>Latest Software Updates</h2></div><a class="see-all" href="<?= e(base_url('/software-updates')) ?>">See all →</a></div>
-        <div class="update-list">
-            <?php foreach (array_slice($updates, 0, 8) as $u): ?>
-                <a class="update-row" href="<?= e(base_url('/software/' . $u['slug'])) ?>">
-                    <span class="update-name"><?= e($u['name']) ?></span>
-                    <span class="update-ver">
-                        <?php if (!empty($u['old_version'])): ?><span class="muted"><?= e($u['old_version']) ?></span> → <?php endif; ?>
-                        <strong><?= e($u['new_version']) ?></strong>
-                    </span>
-                    <span class="muted small"><?= e(time_ago($u['created_at'])) ?></span>
-                </a>
-            <?php endforeach; ?>
-        </div>
+        <section class="fh-box">
+            <h2 class="fh-h">Most Popular Downloads</h2>
+            <ol class="fh-popular">
+                <?php foreach ($popular as $s): ?>
+                    <li>
+                        <span class="fh-ico"><?= $icon($s) ?></span>
+                        <a href="<?= e(base_url('/software/' . $s['slug'])) ?>"><?= e($s['name']) ?><?= !empty($s['version']) ? ' ' . e($s['version']) : '' ?></a>
+                    </li>
+                <?php endforeach; ?>
+                <?php if (empty($popular)): ?><li class="muted small">No software yet.</li><?php endif; ?>
+            </ol>
+            <a class="fh-more" href="<?= e(base_url('/software?sort=popular')) ?>">More Popular Software »</a>
+        </section>
     </div>
-</section>
-<?php endif; ?>
 
-<section class="finder-cta">
-    <div class="container finder-cta-inner">
-        <div>
-            <h2>Not sure what you need?</h2>
-            <p>Answer a few quick questions and we'll recommend the best software for your PC, budget and skill level.</p>
-        </div>
-        <a class="btn btn-primary btn-lg" href="<?= e(base_url('/software-finder')) ?>">Launch Software Finder</a>
+    <?php if (!empty($categorySections)): ?>
+    <div class="fh-cats">
+        <?php foreach ($categorySections as $sec): $c = $sec['category']; ?>
+            <section class="fh-cat">
+                <h3 class="fh-cat-h"><a href="<?= e(base_url('/category/' . $c['slug'])) ?>"><?= e($c['name']) ?></a></h3>
+                <ul>
+                    <?php foreach ($sec['items'] as $it): ?>
+                        <li>
+                            <span class="fh-ico"><?= $icon($it) ?></span>
+                            <a href="<?= e(base_url('/software/' . $it['slug'])) ?>">
+                                <span class="fh-name"><?= e($it['name']) ?></span>
+                                <span class="fh-sub"><?= e(str_excerpt($it['short_description'] ?: ($it['developer_name'] ?: ''), 42)) ?></span>
+                            </a>
+                        </li>
+                    <?php endforeach; ?>
+                </ul>
+                <a class="fh-more" href="<?= e(base_url('/category/' . $c['slug'])) ?>">View More »</a>
+            </section>
+        <?php endforeach; ?>
     </div>
-</section>
+    <?php else: ?>
+        <p class="muted" style="text-align:center;padding:40px 0">No <?= e($platform ?: '') ?> software published yet. The catalogue fills up automatically every hour.</p>
+    <?php endif; ?>
+
+    <?php if ($ad = setting('ad_footer')): ?><div class="ad ad-footer"><?= $ad ?></div><?php endif; ?>
+</div>

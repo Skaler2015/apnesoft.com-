@@ -13,27 +13,22 @@ final class HomeController extends Controller
     {
         $this->trackView('/');
 
+        $platform = \App\Core\SiteContext::label();
         $data = [
-            'title'           => setting('site_name') . ' — ' . setting('tagline'),
-            'metaDescription' => 'Discover, compare and download trusted software from official sources. Version tracking, alternatives and a smart software finder.',
-            'popular'         => Software::popular(8),
-            'recentlyUpdated' => Software::recentlyUpdated(8),
-            'newest'          => Software::newest(8),
-            'free'            => Software::byPrice('free', 8),
-            'openSource'      => Software::openSource(8),
-            'windows'         => Software::byOsSlug('windows', 8),
-            'macos'           => Software::byOsSlug('macos', 8),
-            'linux'           => Software::byOsSlug('linux', 8),
-            'lowEnd'          => Software::lowEndPc(4096, 8),
-            'trending'        => Category::trending(10),
+            'title'           => trim(($platform ? $platform . ' ' : '') . 'Software Downloads') . ' — ' . setting('site_name'),
+            'metaDescription' => 'Download & discover the best ' . ($platform ?: '') . ' software, apps and games — from official sources, with version tracking.',
+            'latest'          => Software::newest(10),
+            'popular'         => Software::popular(10),
             'updates'         => Software::recentUpdates(10),
+            'platform'        => $platform,
         ];
 
-        // "Popular categories" — each top category with its top apps.
+        // Category directory — every category that has software (on this platform),
+        // each with its top apps, rendered FileHorse-style.
         $sections = [];
-        foreach (Category::trending(6) as $c) {
+        foreach (Category::withCounts() as $c) {
             $items = Software::byCategory((int) $c['id'], 5);
-            if (count($items) >= 3) {
+            if ($items) {
                 $sections[] = ['category' => $c, 'items' => $items];
             }
         }
