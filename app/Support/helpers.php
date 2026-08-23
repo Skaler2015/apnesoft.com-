@@ -35,7 +35,10 @@ if (!function_exists('base_url')) {
 if (!function_exists('asset')) {
     function asset(string $path): string
     {
-        return base_url('assets/' . ltrim($path, '/'));
+        // Root-relative so CSS/JS/images always load from the current origin and
+        // scheme — avoids any host/scheme mismatch across the platform subdomains
+        // (mac./ios./android.) that would otherwise block them as mixed content.
+        return '/assets/' . ltrim($path, '/');
     }
 }
 
