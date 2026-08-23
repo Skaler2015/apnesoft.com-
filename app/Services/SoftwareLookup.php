@@ -37,23 +37,31 @@ final class SoftwareLookup
             return self::finish($pop, 100);
         }
 
-        // 2) Official app catalogues (winget, Chocolatey) — official homepages.
-        [$best, $score] = self::pickBest($target, array_merge(self::winget($name), self::chocolatey($name)));
-        if ($best !== null && $score >= 65) {
-            return self::finish($best, $score);
-        }
-
-        // 3) GitHub (open-source projects) as a fallback only.
-        [$gh, $ghScore] = self::pickBest($target, self::github($name));
-        if ($gh !== null && $ghScore >= 62) {
-            return self::finish($gh, $ghScore);
-        }
-
-        // 4) A weaker official match, if we had one.
-        if ($best !== null && $score >= 55) {
+        // 2) Official app catalogues (winget, Chocolatey) — official homepages ONLY.
+        //    We deliberately DO NOT use GitHub search: it returns arbitrary repos
+        //    that merely match the name (e.g. a random user's fork), which are not
+        //    the official software. If no official homepage is found we return
+        //    null so the admin pastes the official URL instead of a wrong link.
+        $cands = array_filter(
+            array_merge(self::winget($name), self::chocolatey($name)),
+            static fn($c) => !self::isGithubSource($c)
+        );
+        [$best, $score] = self::pickBest($target, $cands);
+        if ($best !== null && $score >= 60) {
             return self::finish($best, $score);
         }
         return null;
+    }
+
+    /** True if a candidate's links point at GitHub (not an official vendor site). */
+    private static function isGithubSource(array $c): bool
+    {
+        foreach (['official_website', 'official_download_url', 'developer_website'] as $k) {
+            if (!empty($c[$k]) && preg_match('~github(?:usercontent)?\.com~i', (string) $c[$k])) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
