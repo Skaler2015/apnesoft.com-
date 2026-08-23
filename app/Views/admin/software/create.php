@@ -59,12 +59,6 @@
                 <?php endforeach; ?>
             </select>
         </label>
-        <label>Open source
-            <select name="is_open_source"><option value="0">No</option><option value="1">Yes</option></select>
-        </label>
-        <label>Architecture<input name="architecture" value="<?= old('architecture') ?>" placeholder="x64, arm64…"></label>
-        <label>File size<input name="file_size" value="<?= old('file_size') ?>" placeholder="~40 MB"></label>
-        <label>Min RAM (MB)<input name="min_ram_mb" type="number" value="<?= old('min_ram_mb') ?>" placeholder="e.g. 2048"></label>
         <label>Release date<input name="release_date" type="date" value="<?= old('release_date') ?>"></label>
 
         <div class="col-2">
@@ -152,8 +146,8 @@
                 if (!res.ok) { statusEl.textContent = res.message || 'Nothing found — fill the form manually.'; return; }
                 var d = res.data || {};
                 ['name','developer_name','developer_website','official_website','official_download_url',
-                 'version','license_type','architecture','file_size','logo','short_description','long_description'].forEach(function (k) { set(k, d[k]); });
-                ['price_type','is_open_source','category_id'].forEach(function (k) {
+                 'version','license_type','logo','short_description','long_description'].forEach(function (k) { set(k, d[k]); });
+                ['price_type','category_id'].forEach(function (k) {
                     if (d[k] !== undefined && d[k] !== null && d[k] !== '') { var el = document.querySelector('[name="' + k + '"]'); if (el) el.value = String(d[k]); }
                 });
                 if (d.operating_system) {
