@@ -112,6 +112,11 @@ $router->post('/admin/software/{id}/enhance', [\App\Controllers\Admin\AiControll
 $router->post('/admin/software/{id}/go-live', [SoftwareAdminController::class, 'goLive']);
 $router->post('/admin/software/{id}/action', [SoftwareAdminController::class, 'action']);
 
+$router->get('/admin/categories', [\App\Controllers\Admin\CategoryAdminController::class, 'index']);
+$router->post('/admin/categories', [\App\Controllers\Admin\CategoryAdminController::class, 'store']);
+$router->post('/admin/categories/{id}/rename', [\App\Controllers\Admin\CategoryAdminController::class, 'rename']);
+$router->post('/admin/categories/{id}/delete', [\App\Controllers\Admin\CategoryAdminController::class, 'delete']);
+
 $router->get('/admin/sources', [SourceController::class, 'index']);
 $router->get('/admin/sources/new', [SourceController::class, 'create']);
 $router->post('/admin/sources/new', [SourceController::class, 'save']);

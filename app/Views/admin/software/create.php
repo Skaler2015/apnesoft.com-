@@ -184,11 +184,13 @@ $action = $action ?? base_url('/admin/software/new');
             <div style="display:flex;gap:8px">
                 <select name="category_id" id="f-cat" style="flex:1">
                     <option value="">—</option>
-                    <?php foreach ($categories as $c): ?>
+                    <?php $catsSorted = $categories; usort($catsSorted, static fn($a, $b) => strnatcasecmp((string) $a['name'], (string) $b['name'])); ?>
+                    <?php foreach ($catsSorted as $c): ?>
                         <option value="<?= (int) $c['id'] ?>" <?= (int) $fv('category_id') === (int) $c['id'] ? 'selected' : '' ?>><?= e($c['name']) ?></option>
                     <?php endforeach; ?>
                 </select>
                 <button type="button" id="cat-add-btn" class="btn btn-ghost" title="Add a new category">+ New</button>
+                <a href="<?= e(base_url('/admin/categories')) ?>" class="btn btn-ghost" title="Manage categories" target="_blank">⚙</a>
             </div>
         </div>
         <label>Release date<input name="release_date" type="date" value="<?= e($fv('release_date')) ?>"></label>
@@ -436,7 +438,15 @@ $action = $action ?? base_url('/admin/software/new');
                     catSave.disabled = false;
                     if (!res.ok) { catMsg.textContent = res.message || 'Failed.'; return; }
                     var opt = catSel.querySelector('option[value="' + res.id + '"]');
-                    if (!opt) { opt = document.createElement('option'); opt.value = res.id; opt.textContent = res.name; catSel.appendChild(opt); }
+                    if (!opt) {
+                        opt = document.createElement('option'); opt.value = res.id; opt.textContent = res.name;
+                        // Insert alphabetically (skip the leading "—" placeholder).
+                        var opts = catSel.querySelectorAll('option'), placed = false;
+                        for (var i = 1; i < opts.length; i++) {
+                            if (res.name.localeCompare(opts[i].textContent, undefined, { numeric: true, sensitivity: 'base' }) < 0) { catSel.insertBefore(opt, opts[i]); placed = true; break; }
+                        }
+                        if (!placed) catSel.appendChild(opt);
+                    }
                     catSel.value = String(res.id);
                     closeCat();
                 })

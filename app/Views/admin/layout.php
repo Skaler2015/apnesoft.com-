@@ -11,6 +11,7 @@ $nav = [
     '/admin/software/discover' => ['Discover', '🧭'],
     '/admin/software/bulk'     => ['Bulk publish', '🚀'],
     '/admin/software'          => ['All Software', '📋'],
+    '/admin/categories'        => ['Categories', '🗂'],
 ];
 // Highlight only the most specific (longest) matching nav item.
 $activeHref = '';
