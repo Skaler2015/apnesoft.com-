@@ -15,16 +15,6 @@
         <?php endforeach; ?>
     </div>
 
-    <div class="plat-danger">
-        <h3>⚠️ Start fresh</h3>
-        <p class="muted small">Delete <strong>all</strong> software from every platform and pause auto-import.
-            This cannot be undone — use it only to start with a clean, empty catalogue.</p>
-        <form method="post" action="<?= e(base_url('/admin/platform/reset')) ?>"
-              onsubmit="return confirm('Delete ALL software from all four platforms? This cannot be undone.');">
-            <?= Csrf::field() ?>
-            <button class="btn btn-sm" style="background:var(--red);color:#fff">🗑️ Delete all software &amp; start fresh</button>
-        </form>
-    </div>
 </div>
 
 <style>
