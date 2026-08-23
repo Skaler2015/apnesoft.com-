@@ -33,6 +33,41 @@ final class SoftwareAdminController extends AdminController
         $this->json(['ok' => true, 'data' => $data]);
     }
 
+    /** GET /admin/software/ai-fill?name=… — catalogue lookup + AI-written rich content. */
+    public function aiFill(array $args = []): never
+    {
+        $this->requirePermission('software.manage');
+        $name = trim($this->request->str('name'));
+        if (mb_strlen($name) < 2) {
+            $this->json(['ok' => false, 'message' => 'Type a software name first.']);
+        }
+        $lookup = \App\Services\SoftwareLookup::search($name);
+        $out = [
+            'ok'           => true,
+            'lookup'       => $lookup ?: null,
+            'ai'           => null,
+            'ai_available' => \App\Services\AiEnhancer::isConfigured(),
+        ];
+        if (\App\Services\AiEnhancer::isConfigured()) {
+            $facts = array_filter([
+                'name'             => $lookup['name'] ?? $name,
+                'developer'        => $lookup['developer_name'] ?? null,
+                'operating_system' => $lookup['operating_system'] ?? null,
+                'license'          => $lookup['license_type'] ?? null,
+                'price_type'       => $lookup['price_type'] ?? null,
+                'official_website' => $lookup['official_website'] ?? null,
+                'existing_short'   => $lookup['short_description'] ?? null,
+            ], static fn($v) => $v !== null && $v !== '');
+            $gen = \App\Services\AiEnhancer::generate($facts);
+            if ($gen['ok']) {
+                $out['ai'] = $gen['data'];
+            } else {
+                $out['ai_message'] = $gen['message'];
+            }
+        }
+        $this->json($out);
+    }
+
     /** Make sure the iOS platform row exists (older installs lack it). */
     private function ensureIos(): void
     {

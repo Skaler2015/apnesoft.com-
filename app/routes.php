@@ -83,6 +83,7 @@ $router->post('/admin/ai/start', [\App\Controllers\Admin\AiController::class, 's
 
 $router->get('/admin/software', [SoftwareAdminController::class, 'index']);
 $router->get('/admin/software/lookup', [SoftwareAdminController::class, 'lookup']);
+$router->get('/admin/software/ai-fill', [SoftwareAdminController::class, 'aiFill']);
 $router->get('/admin/software/new', [SoftwareAdminController::class, 'create']);
 $router->post('/admin/software/new', [SoftwareAdminController::class, 'store']);
 $router->post('/admin/software/quick', [SoftwareAdminController::class, 'quickPublish']);

@@ -30,29 +30,60 @@ final class SoftwareLookup
         }
         $target = self::norm($name);
 
+        // 1) Curated popular apps first — always the vendor's OFFICIAL link,
+        //    highest trust (e.g. "Telegram" -> telegram.org, not a random repo).
+        $pop = CatalogImport::popularApp($name);
+        if ($pop !== null) {
+            return self::finish($pop, 100);
+        }
+
+        // 2) Official app catalogues (winget, Chocolatey) — official homepages.
+        [$best, $score] = self::pickBest($target, array_merge(self::winget($name), self::chocolatey($name)));
+        if ($best !== null && $score >= 65) {
+            return self::finish($best, $score);
+        }
+
+        // 3) GitHub (open-source projects) as a fallback only.
+        [$gh, $ghScore] = self::pickBest($target, self::github($name));
+        if ($gh !== null && $ghScore >= 62) {
+            return self::finish($gh, $ghScore);
+        }
+
+        // 4) A weaker official match, if we had one.
+        if ($best !== null && $score >= 55) {
+            return self::finish($best, $score);
+        }
+        return null;
+    }
+
+    /** @return array{0:?array,1:int} best candidate + its score */
+    private static function pickBest(string $target, array $cands): array
+    {
         $best = null;
-        $bestScore = 0;
-        foreach ([self::winget($name), self::chocolatey($name), self::github($name)] as $candidates) {
-            foreach ($candidates as $c) {
-                $score = self::score($target, self::norm((string) $c['name']));
-                if ($score > $bestScore) {
-                    $bestScore = $score;
-                    $best = $c;
-                }
-                if ($bestScore >= 100) {
-                    break 2; // exact match — stop early
-                }
+        $bs = 0;
+        foreach ($cands as $c) {
+            $s = self::score($target, self::norm((string) $c['name']));
+            if ($s > $bs) {
+                $bs = $s;
+                $best = $c;
             }
         }
+        return [$best, $bs];
+    }
 
-        if ($best === null || $bestScore < 55) {
-            return null;
-        }
-
-        // Suggest a category + confidence, and drop empty fields.
+    /** Attach a suggested category + confidence + logo, drop empty fields. */
+    private static function finish(array $best, int $score): array
+    {
         $best['category_id'] = Classifier::detectCategory((string) $best['name'],
             (string) ($best['long_description'] ?? '') . ' ' . (string) ($best['signals'] ?? ''));
-        $best['match'] = $bestScore;
+        // Give it a logo — the official site's favicon — when none was found.
+        if (empty($best['logo']) && !empty($best['official_website'])) {
+            $host = parse_url((string) $best['official_website'], PHP_URL_HOST);
+            if ($host) {
+                $best['logo'] = 'https://www.google.com/s2/favicons?domain=' . $host . '&sz=128';
+            }
+        }
+        $best['match'] = $score;
         unset($best['signals']);
         return array_filter($best, static fn($v) => $v !== null && $v !== '');
     }

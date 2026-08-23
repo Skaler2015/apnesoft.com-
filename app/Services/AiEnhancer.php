@@ -84,12 +84,33 @@ final class AiEnhancer
 
         self::ensureSchema();
 
-        $facts = self::factSheet($s);
+        $gen = self::generate(self::factSheet($s));
+        if (!$gen['ok']) {
+            return ['ok' => false, 'message' => $gen['message']];
+        }
+
+        self::apply($softwareId, $s, $gen['data']);
+
+        return ['ok' => true, 'message' => 'Enhanced with ' . self::MODELS[self::model()] . '.'];
+    }
+
+    /**
+     * Call the model with a fact-sheet and return the parsed content (without
+     * saving) — used by the admin "AI fill" so the form can be pre-populated.
+     *
+     * @return array{ok:bool, data:?array, message:string}
+     */
+    public static function generate(array $facts): array
+    {
+        $key = self::apiKey();
+        if ($key === null) {
+            return ['ok' => false, 'data' => null, 'message' => 'No Anthropic API key configured.'];
+        }
         [$system, $user] = self::buildPrompt($facts);
 
         $resp = Http::postJson(self::ENDPOINT, [
             'model'      => self::model(),
-            'max_tokens' => 1500,
+            'max_tokens' => 2600,
             'system'     => $system,
             'messages'   => [['role' => 'user', 'content' => $user]],
         ], [
@@ -98,9 +119,8 @@ final class AiEnhancer
         ]);
 
         if ($resp['status'] !== 200) {
-            return ['ok' => false, 'message' => self::apiError($resp)];
+            return ['ok' => false, 'data' => null, 'message' => self::apiError($resp)];
         }
-
         $data = json_decode($resp['body'], true);
         $text = '';
         foreach ($data['content'] ?? [] as $block) {
@@ -110,12 +130,9 @@ final class AiEnhancer
         }
         $parsed = self::parseJson($text);
         if ($parsed === null) {
-            return ['ok' => false, 'message' => 'Could not parse the AI response.'];
+            return ['ok' => false, 'data' => null, 'message' => 'Could not parse the AI response.'];
         }
-
-        self::apply($softwareId, $s, $parsed);
-
-        return ['ok' => true, 'message' => 'Enhanced with ' . self::MODELS[self::model()] . '.'];
+        return ['ok' => true, 'data' => $parsed, 'message' => 'ok'];
     }
 
     /**
@@ -231,16 +248,18 @@ final class AiEnhancer
         Respond with ONLY a JSON object (no markdown fences, no commentary) of the form:
         {
           "short_description": "one factual sentence, max 155 chars",
-          "long_description": "2-4 short paragraphs of plain text describing what the software is, who makes it, what it's for, and how it's licensed — strictly from the facts",
+          "long_description": "a thorough, well-structured description of AT LEAST 400 words in 4-6 plain-text paragraphs (separate paragraphs with a blank line): what the software is, who makes it, what it's used for, its main capabilities, who it's for, how it's licensed. Rich and readable — but strictly grounded in the facts and general, widely-known information about this software. Do NOT invent version numbers, dates, prices or specific statistics.",
           "features": ["short factual capability", "..."],
           "pros": ["grounded advantage", "..."],
-          "cons": ["grounded limitation or consideration", "..."]
+          "cons": ["grounded limitation or consideration", "..."],
+          "tags": ["lowercase keyword", "..."],
+          "minimum_requirements": "a few lines of GENERAL, commonly-known system requirements (e.g. supported OS versions). Keep it conservative — do NOT invent exact RAM/CPU/disk numbers you are unsure of. Empty string if unknown."
         }
-        Keep features/pros/cons to at most 6 items each, each under 120 characters.
+        Give 4-6 features, 3-5 pros, 1-3 cons, and 4-8 tags. Keep list items under 120 characters.
         SYS;
 
         $user = "KNOWN FACTS (JSON):\n" . json_encode($facts, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)
-            . "\n\nWrite the catalogue copy for this software using only these facts.";
+            . "\n\nWrite the catalogue copy for this software. Base it on these facts plus what is widely and reliably known about this specific software; never fabricate versions, dates, prices or precise specs.";
 
         return [$system, $user];
     }
@@ -274,9 +293,32 @@ final class AiEnhancer
         if ($long !== '') {
             $update['long_description'] = $long;
         }
+        $req = trim((string) ($parsed['minimum_requirements'] ?? ''));
+        if ($req !== '' && empty($s['minimum_requirements'])) {
+            $update['minimum_requirements'] = mb_substr($req, 0, 2000);
+        }
         $update['ai_enhanced_at'] = gmdate('Y-m-d H:i:s');
 
         Database::update('software', $update, ['id' => $softwareId]);
+
+        // Tags (create + link).
+        if (is_array($parsed['tags'] ?? null)) {
+            foreach (array_slice($parsed['tags'], 0, 10) as $tag) {
+                $tag = trim((string) $tag);
+                $slug = slugify($tag);
+                if ($slug === '') {
+                    continue;
+                }
+                $tagId = (int) Database::scalar('SELECT id FROM tags WHERE slug = :s', ['s' => $slug]);
+                if (!$tagId) {
+                    Database::run('INSERT IGNORE INTO tags (name, slug) VALUES (:n, :s)', ['n' => mb_substr($tag, 0, 80), 's' => $slug]);
+                    $tagId = (int) Database::scalar('SELECT id FROM tags WHERE slug = :s', ['s' => $slug]);
+                }
+                if ($tagId) {
+                    Database::run('INSERT IGNORE INTO software_tags (software_id, tag_id) VALUES (:s, :t)', ['s' => $softwareId, 't' => $tagId]);
+                }
+            }
+        }
 
         // Replace only the AI-managed feature/pro/con rows (leave any others intact
         // by clearing per-type before reinserting).

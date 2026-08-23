@@ -14,14 +14,13 @@
             <label style="margin-bottom:6px">Name *</label>
             <div style="display:flex;gap:8px;flex-wrap:wrap">
                 <input name="name" id="f-name" value="<?= old('name') ?>" required autofocus style="flex:1;min-width:200px">
-                <button type="button" id="ai-autofill" class="btn btn-primary">🔎 Auto-fill</button>
-                <button type="submit" formaction="<?= e(base_url('/admin/software/quick')) ?>" class="btn btn-ghost"
-                        title="Auto-fill from the name and publish in one click"
-                        onclick="return (document.getElementById('f-name').value.trim().length>1) || (alert('Type a software name first.'),false);">✨ AI publish</button>
+                <button type="button" id="ai-autofill" class="btn btn-ghost">🔎 Auto-fill</button>
+                <button type="button" id="ai-fill" class="btn btn-primary" title="Fill everything — links, long description, features, pros/cons, tags — using AI">✨ AI fill (full)</button>
             </div>
             <p id="autofill-status" class="muted small" style="margin-top:6px">
-                Type the name → <strong>Auto-fill</strong> loads the details, or <strong>AI publish</strong> fills &amp; publishes in one click.
-                Data comes from free official catalogues (winget, Chocolatey, GitHub). No API key needed.
+                <strong>Auto-fill</strong> = basic details from free catalogues (no key). <strong>✨ AI fill</strong> = official details
+                <em>plus</em> a long description, features, pros/cons, tags &amp; requirements — needs your Anthropic API key in
+                <a href="<?= e(base_url('/admin/settings')) ?>">Settings</a>.
             </p>
         </div>
 
@@ -150,17 +149,56 @@
                 ['price_type','category_id'].forEach(function (k) {
                     if (d[k] !== undefined && d[k] !== null && d[k] !== '') { var el = document.querySelector('[name="' + k + '"]'); if (el) el.value = String(d[k]); }
                 });
-                if (d.operating_system) {
-                    var os = String(d.operating_system).toLowerCase();
-                    document.querySelectorAll('input[name="os[]"]').forEach(function (cb) {
-                        var lbl = (cb.parentNode.textContent || '').trim().toLowerCase();
-                        if (lbl && os.indexOf(lbl) !== -1) cb.checked = true;
-                    });
-                }
+                // Note: operating systems keep the current panel's selection — we
+                // don't override them, so a Windows panel stays Windows.
                 statusEl.innerHTML = '✓ Filled from <strong>' + (d.source || 'catalogue') + '</strong>' + (d.match ? ' (' + d.match + '% match)' : '') + '. Review, then Add software.';
                 updatePreview();
             })
             .catch(function () { btn.disabled = false; btn.textContent = original; statusEl.textContent = 'Lookup failed — fill the form manually.'; });
+    });
+
+    // ---- AI fill (full: official details + AI-written rich content) ----
+    var aiBtn = document.getElementById('ai-fill');
+    function fillList(name, arr) {
+        if (!Array.isArray(arr) || !arr.length) return;
+        var el = document.querySelector('[name="' + name + '"]');
+        if (el) el.value = arr.join('\n');
+    }
+    if (aiBtn) aiBtn.addEventListener('click', function () {
+        var name = (nameInput.value || '').trim();
+        if (name.length < 2) { statusEl.textContent = 'Type a software name first.'; nameInput.focus(); return; }
+        var original = aiBtn.textContent;
+        aiBtn.disabled = true; aiBtn.textContent = '⏳ Writing with AI…';
+        statusEl.textContent = 'Finding official details and writing a full description with AI… (may take ~15s)';
+        fetch(<?= json_encode(base_url('/admin/software/ai-fill')) ?> + '?name=' + encodeURIComponent(name))
+            .then(function (r) { return r.json(); })
+            .then(function (res) {
+                aiBtn.disabled = false; aiBtn.textContent = original;
+                if (!res.ok) { statusEl.textContent = res.message || 'Failed.'; return; }
+                var d = res.lookup || {};
+                ['name','developer_name','developer_website','official_website','official_download_url',
+                 'version','license_type','logo'].forEach(function (k) { set(k, d[k]); });
+                ['price_type','category_id'].forEach(function (k) {
+                    if (d[k] !== undefined && d[k] !== null && d[k] !== '') { var el = document.querySelector('[name="' + k + '"]'); if (el) el.value = String(d[k]); }
+                });
+                var a = res.ai;
+                if (a) {
+                    set('short_description', a.short_description);
+                    set('long_description', a.long_description);
+                    set('minimum_requirements', a.minimum_requirements);
+                    fillList('features', a.features);
+                    fillList('pros', a.pros);
+                    fillList('cons', a.cons);
+                    if (Array.isArray(a.tags)) set('tags', a.tags.join(', '));
+                    statusEl.innerHTML = '✨ AI filled the full page (description, features, pros/cons, tags). Review, then <strong>Add software</strong>.';
+                } else if (!res.ai_available) {
+                    statusEl.innerHTML = '⚠️ Basic details filled. For the long description, features, pros/cons &amp; tags, add your Anthropic API key in <a href="<?= e(base_url('/admin/settings')) ?>">Settings</a>, then try AI fill again.';
+                } else {
+                    statusEl.textContent = 'Details filled, but AI failed: ' + (res.ai_message || 'unknown error');
+                }
+                updatePreview();
+            })
+            .catch(function () { aiBtn.disabled = false; aiBtn.textContent = original; statusEl.textContent = 'AI fill failed — try Auto-fill instead.'; });
     });
 
     // ---- Live preview ----

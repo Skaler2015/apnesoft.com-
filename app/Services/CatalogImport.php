@@ -237,6 +237,40 @@ final class CatalogImport
         return $entries;
     }
 
+    /**
+     * Find a curated popular app by (normalised) name — used by the admin
+     * auto-fill so well-known apps resolve to their OFFICIAL vendor link.
+     * @return array<string,mixed>|null lookup DTO
+     */
+    public static function popularApp(string $name): ?array
+    {
+        $key = \App\Services\Dedupe::key($name);
+        if ($key === '') {
+            return null;
+        }
+        foreach (self::POPULAR as $a) {
+            if (\App\Services\Dedupe::key($a[0]) === $key) {
+                return [
+                    'name'                  => $a[0],
+                    'developer_name'        => $a[1],
+                    'official_website'      => $a[2],
+                    'official_download_url' => $a[3] ?: $a[2],
+                    'short_description'     => $a[4],
+                    'long_description'      => $a[4],
+                    'license_type'          => null,
+                    'price_type'            => $a[6] ?? null,
+                    'is_open_source'        => ($a[6] ?? '') === 'open_source' ? 1 : 0,
+                    'operating_system'      => $a[8] ?? 'Windows',
+                    'logo'                  => null,
+                    'source'                => 'official',
+                    'category_slug'         => $a[5],
+                    'signals'               => $a[0] . ' ' . $a[5] . ' ' . $a[4],
+                ];
+            }
+        }
+        return null;
+    }
+
     // -- Curated popular apps (household names, official links) ----------------
     private static function popular(): array
     {
