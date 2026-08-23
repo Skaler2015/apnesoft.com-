@@ -6,15 +6,25 @@ $ok = \App\Core\Session::flash('ok');
 $err = \App\Core\Session::flash('err');
 $path = $_SERVER['REQUEST_URI'] ?? '';
 $nav = [
-    '/admin'            => ['Dashboard', '▚'],
-    '/admin/software'   => ['Software', '▤'],
+    '/admin'             => ['Dashboard', '▚'],
+    '/admin/software/new' => ['Add Software', '➕'],
+    '/admin/software'    => ['All Software', '▤'],
     '/admin/bulk-import' => ['Bulk Import', '⬇'],
-    '/admin/ai'         => ['AI Enhancer', '✨'],
-    '/admin/review'     => ['Review Queue', '⚑'],
-    '/admin/sources'    => ['Source Manager', '⇄'],
-    '/admin/automation' => ['Automation', '⚙'],
-    '/admin/settings'   => ['Settings', '⚑'],
+    '/admin/ai'          => ['AI Enhancer', '✨'],
+    '/admin/review'      => ['Review Queue', '⚑'],
+    '/admin/sources'     => ['Source Manager', '⇄'],
+    '/admin/automation'  => ['Automation', '⚙'],
+    '/admin/settings'    => ['Settings', '⚑'],
 ];
+// Highlight only the most specific (longest) matching nav item.
+$activeHref = '';
+foreach ($nav as $href => $_x) {
+    if ($href === '/admin') {
+        if ($path === '/admin' || $path === '/admin/') { $activeHref = $href; }
+    } elseif (str_starts_with($path, $href) && strlen($href) > strlen($activeHref)) {
+        $activeHref = $href;
+    }
+}
 ?><!doctype html>
 <html lang="en" data-theme="dark">
 <head>
@@ -30,10 +40,8 @@ $nav = [
     <aside class="admin-sidebar">
         <a class="admin-brand" href="<?= e(base_url('/admin')) ?>">◆ <?= e(setting('site_name')) ?></a>
         <nav class="admin-nav">
-            <?php foreach ($nav as $href => [$label, $icon]):
-                $active = ($href === '/admin') ? ($path === '/admin' || $path === '/admin/') : str_starts_with($path, $href);
-            ?>
-                <a href="<?= e(base_url($href)) ?>" class="<?= $active ? 'is-active' : '' ?>"><span class="ico"><?= $icon ?></span> <?= e($label) ?></a>
+            <?php foreach ($nav as $href => [$label, $icon]): ?>
+                <a href="<?= e(base_url($href)) ?>" class="<?= $href === $activeHref ? 'is-active' : '' ?>"><span class="ico"><?= $icon ?></span> <?= e($label) ?></a>
             <?php endforeach; ?>
         </nav>
         <div class="admin-nav-foot">

@@ -1,7 +1,9 @@
 <?php use App\Core\Csrf; ?>
 <div class="admin-edit-head">
     <a class="btn btn-sm btn-ghost" href="<?= e(base_url('/admin/software')) ?>">← Back</a>
+    <h2 style="margin:0 0 0 4px">➕ Publish new software</h2>
 </div>
+<p class="muted" style="margin:-4px 0 14px">Fill the details and choose <strong>Published</strong> to make it live immediately. Only add official / authorized download links.</p>
 <form method="post" action="<?= e(base_url('/admin/software/new')) ?>" class="admin-form">
     <?= Csrf::field() ?>
     <div class="form-grid">
