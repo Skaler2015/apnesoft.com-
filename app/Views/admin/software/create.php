@@ -69,16 +69,22 @@
                 return 'Other';
             };
             foreach (($osVersions ?? []) as $v) { $osGroups[$osGroupOf($v)][] = $v; }
+            $panelGroup = $panelGroup ?? '';
+            // If a platform panel is open, show only that group.
+            $visibleGroups = $panelGroup !== '' ? [$panelGroup] : $osGroupOrder;
         ?>
         <div class="col-2">
-            <label style="margin-bottom:6px">Operating system versions <span class="muted small">(open the list and tick one or more)</span></label>
-            <div class="osv-dd" id="osv-dd">
+            <label style="margin-bottom:6px">Operating system versions
+                <span class="muted small"><?= $panelGroup !== '' ? '(' . e($panelGroup) . ' — tick one or more)' : '(open the list and tick one or more)' ?></span>
+            </label>
+            <div class="osv-dd" id="osv-dd" data-panel-group="<?= e($panelGroup) ?>">
                 <button type="button" class="osv-toggle" id="osv-toggle" aria-expanded="false">
                     <span id="osv-summary">Select OS versions…</span><span class="osv-caret">▾</span>
                 </button>
                 <div class="osv-panel" id="osv-panel" hidden>
                     <div id="osv-groups">
-                        <?php foreach ($osGroupOrder as $g): if (empty($osGroups[$g])) continue; ?>
+                        <?php foreach ($visibleGroups as $g): ?>
+                        <?php if ($panelGroup === '' && empty($osGroups[$g])) continue; ?>
                             <div class="osv-group" data-group="<?= e($g) ?>">
                                 <div class="osv-group-h"><?= e($g) ?></div>
                                 <div class="osv-group-items">
@@ -258,6 +264,16 @@
         if (Array.isArray(d.cons) && d.cons.length) { var c = document.querySelector('[name="cons"]'); if (c) c.value = d.cons.join('\n'); }
         if (Array.isArray(d.tags) && d.tags.length) set('tags', d.tags.join(', '));
     }
+    // Tick any OS-version checkboxes whose label appears in the detected OS text.
+    function tickOsVersions(osText) {
+        if (!osText) return;
+        var t = String(osText).toLowerCase();
+        var any = false;
+        document.querySelectorAll('input[name="os_versions[]"]').forEach(function (cb) {
+            if (t.indexOf(cb.value.toLowerCase()) >= 0) { cb.checked = true; any = true; }
+        });
+        if (any) { var s = document.getElementById('osv-summary'); if (s && window.__osvUpdate) window.__osvUpdate(); }
+    }
 
     // ---- Add a category inline (popup) ----
     var catBtn = document.getElementById('cat-add-btn');
@@ -306,6 +322,7 @@
         var osvSave = document.getElementById('osv-save');
         var oi = document.querySelector('.admin-form input[name="_csrf"]');
         var O_NAME = oi ? oi.name : '_csrf', O_VAL = oi ? oi.value : '';
+        var panelGroup = osvDd.getAttribute('data-panel-group') || '';
 
         function groupOf(v) {
             var l = v.toLowerCase();
@@ -338,7 +355,7 @@
                 if (cb.value.toLowerCase() === val.toLowerCase()) { dup = true; if (checked) cb.checked = true; }
             });
             if (dup) { updateSummary(); return; }
-            var items = ensureGroup(groupOf(val));
+            var items = ensureGroup(panelGroup || groupOf(val));
             var lab = document.createElement('label');
             lab.className = 'check osv-item';
             var cb = document.createElement('input');
@@ -355,6 +372,7 @@
         document.getElementById('osv-done').addEventListener('click', closePanel);
         document.addEventListener('click', function (e) { if (!osvDd.contains(e.target)) closePanel(); });
         osvGroups.querySelectorAll('input[name="os_versions[]"]').forEach(function (cb) { cb.addEventListener('change', updateSummary); });
+        window.__osvUpdate = updateSummary;
         updateSummary();
 
         // "+ New version" popup
@@ -431,11 +449,13 @@
                 if (!res.ok) { statusEl.textContent = res.message || 'Nothing found — fill the form manually.'; return; }
                 var d = res.data || {};
                 ['name','developer_name','developer_website','official_website','official_download_url',
-                 'version','license_type','logo','short_description','long_description'].forEach(function (k) { set(k, d[k]); });
+                 'version','license_type','logo','short_description','long_description',
+                 'file_size','release_date','minimum_requirements'].forEach(function (k) { set(k, d[k]); });
                 ['price_type','category_id'].forEach(function (k) {
                     if (d[k] !== undefined && d[k] !== null && d[k] !== '') { var el = document.querySelector('[name="' + k + '"]'); if (el) el.value = String(d[k]); }
                 });
                 fillRich(d);
+                tickOsVersions(d.operating_system);
                 // Note: operating systems keep the current panel's selection — we
                 // don't override them, so a Windows panel stays Windows.
                 statusEl.innerHTML = '✓ Filled from <strong>' + (d.source || 'catalogue') + '</strong>' + (d.match ? ' (' + d.match + '% match)' : '') + '. Features, pros/cons &amp; tags added from real data. Review, then Add software.';

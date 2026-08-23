@@ -30,7 +30,20 @@ final class SoftwareAdminController extends AdminController
         if ($data === null) {
             $this->json(['ok' => false, 'message' => 'No official details found — please fill the form manually.']);
         }
-        // Build free rich content (features / pros-cons / tags / long description) — no AI key needed.
+
+        // Deep enrich: fetch the official page ONCE and pull accurate facts
+        // (schema.org JSON-LD: version, OS, file size, release date, price,
+        // screenshots) + build rich content from the same HTML. No AI key needed.
+        $html = '';
+        $site = trim((string) ($data['official_website'] ?? $data['official_download_url'] ?? ''));
+        if ($site !== '') {
+            $page = \App\Services\Publisher::fetch($site);
+            if ($page !== null) {
+                $html = $page['html'];
+                $data = \App\Services\SoftwareLookup::enrichFromPage($data, $html);
+            }
+        }
+
         $facts = [
             'name'              => $data['name'] ?? $name,
             'developer_name'    => $data['developer_name'] ?? '',
@@ -43,8 +56,7 @@ final class SoftwareAdminController extends AdminController
                 ? (string) \App\Core\Database::scalar('SELECT name FROM categories WHERE id = :i', ['i' => (int) $data['category_id']])
                 : '',
         ];
-        $site = trim((string) ($data['official_website'] ?? ''));
-        $rich = $site !== '' ? \App\Services\FreeContent::fromUrl($site, $facts) : \App\Services\FreeContent::fromFacts($facts);
+        $rich = \App\Services\FreeContent::build($html, $facts);
         if (!empty($rich['long_description'])) {
             $data['long_description'] = $rich['long_description'];
         }
@@ -64,6 +76,13 @@ final class SoftwareAdminController extends AdminController
             $this->json(['ok' => false, 'message' => 'Type a software name first.']);
         }
         $lookup = \App\Services\SoftwareLookup::search($name);
+        // Deep-enrich with accurate facts from the official page (JSON-LD).
+        if ($lookup !== null) {
+            $site = trim((string) ($lookup['official_website'] ?? $lookup['official_download_url'] ?? ''));
+            if ($site !== '' && ($page = \App\Services\Publisher::fetch($site)) !== null) {
+                $lookup = \App\Services\SoftwareLookup::enrichFromPage($lookup, $page['html']);
+            }
+        }
         $out = [
             'ok'           => true,
             'lookup'       => $lookup ?: null,
@@ -579,12 +598,18 @@ final class SoftwareAdminController extends AdminController
         // Pre-select the open panel's platform (or an explicit ?os=).
         $slug = $this->request->str('os') ?: (string) Session::get('admin_platform', '');
         $preOs = (int) (Database::scalar('SELECT id FROM operating_systems WHERE slug = :s', ['s' => $slug]) ?: 0);
+        // When a platform panel is open, the OS dropdown shows only that group.
+        $panelGroup = [
+            'windows' => 'Windows', 'macos' => 'macOS', 'mac' => 'macOS',
+            'ios' => 'iOS / iPadOS', 'android' => 'Android', 'linux' => 'Linux',
+        ][$slug] ?? '';
         $this->render('admin/software/create', [
             'title'      => 'Add Software',
             'categories' => Category::all(),
             'oss'        => Database::all('SELECT * FROM operating_systems ORDER BY sort_order'),
             'preOs'      => $preOs,
             'osVersions' => $this->osVersionOptions(),
+            'panelGroup' => $panelGroup,
             'panelLabel' => \App\Controllers\Admin\PlatformController::current()['label'] ?? null,
         ]);
     }

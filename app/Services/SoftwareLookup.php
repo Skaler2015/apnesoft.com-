@@ -56,6 +56,56 @@ final class SoftwareLookup
         return null;
     }
 
+    /**
+     * Deepen an existing lookup result using the software's own official page:
+     * schema.org SoftwareApplication JSON-LD (accurate version / OS / file size /
+     * release date / price / screenshots) plus a few conservative text fallbacks.
+     * Only fills gaps — a value already found is kept unless the page is clearly
+     * more authoritative (version, file size, release date).
+     *
+     * @param array<string,mixed> $data
+     * @return array<string,mixed>
+     */
+    public static function enrichFromPage(array $data, string $html): array
+    {
+        if ($html === '') {
+            return $data;
+        }
+        $ld = Publisher::parseJsonLd($html);
+
+        $fill = static function (string $key, $val, bool $force = false) use (&$data): void {
+            $val = is_string($val) ? trim($val) : $val;
+            if ($val === null || $val === '' || $val === []) {
+                return;
+            }
+            if ($force || empty($data[$key])) {
+                $data[$key] = $val;
+            }
+        };
+
+        // JSON-LD is authoritative for these hard facts.
+        $fill('version', $ld['version'] ?? '', true);
+        $fill('file_size', $ld['file_size'] ?? '', true);
+        $fill('release_date', $ld['release_date'] ?? '', true);
+        $fill('operating_system', $ld['operating_system'] ?? '');
+        $fill('developer_name', $ld['developer_name'] ?? '');
+        $fill('official_download_url', $ld['official_download_url'] ?? '');
+        $fill('minimum_requirements', $ld['minimum_requirements'] ?? '');
+        $fill('price_type', $ld['price_type'] ?? '');
+        if (!empty($ld['screenshots'])) {
+            $fill('screenshots', $ld['screenshots'], true);
+        }
+
+        // Text fallbacks when the page has no structured data.
+        if (empty($data['version']) && preg_match('~\bversion\s*[:\-]?\s*v?(\d+(?:\.\d+){1,3})~i', $html, $m)) {
+            $data['version'] = $m[1];
+        }
+        if (empty($data['file_size']) && preg_match('~\b(?:file\s*size|download\s*size|size)\s*[:\-]?\s*([\d.]+\s?(?:kb|mb|gb))~i', $html, $m)) {
+            $data['file_size'] = strtoupper(preg_replace('~\s+~', ' ', trim($m[1])));
+        }
+        return $data;
+    }
+
     /** @return array{0:?array,1:int} best candidate + its score */
     private static function pickBest(string $target, array $cands): array
     {

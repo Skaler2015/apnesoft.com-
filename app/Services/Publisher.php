@@ -176,6 +176,117 @@ final class Publisher
         ];
     }
 
+    /**
+     * Extract real, accurate facts from any schema.org SoftwareApplication /
+     * MobileApplication JSON-LD embedded in the page. This is structured data
+     * published by the developer, so it is not invented.
+     *
+     * @return array<string,mixed>
+     */
+    public static function parseJsonLd(string $html): array
+    {
+        if (!preg_match_all('~<script[^>]+type=["\']application/ld\+json["\'][^>]*>(.*?)</script>~is', $html, $m)) {
+            return [];
+        }
+        $nodes = [];
+        foreach ($m[1] as $json) {
+            $decoded = json_decode(trim(html_entity_decode($json, ENT_QUOTES | ENT_HTML5)), true);
+            if (is_array($decoded)) {
+                self::collectLdNodes($decoded, $nodes);
+            }
+        }
+
+        foreach ($nodes as $n) {
+            $types = $n['@type'] ?? '';
+            $types = is_array($types) ? $types : [$types];
+            $isApp = false;
+            foreach ($types as $t) {
+                if (stripos((string) $t, 'application') !== false || stripos((string) $t, 'softwaresourcecode') !== false) {
+                    $isApp = true;
+                }
+            }
+            if (!$isApp) {
+                continue;
+            }
+
+            $str = static function ($x): string {
+                if (is_string($x) || is_numeric($x)) return trim((string) $x);
+                if (is_array($x)) return trim((string) ($x['name'] ?? $x['url'] ?? $x['@value'] ?? (is_string($x[0] ?? null) ? $x[0] : '')));
+                return '';
+            };
+
+            $out = array_filter([
+                'name'                  => $str($n['name'] ?? ''),
+                'version'               => $str($n['softwareVersion'] ?? $n['version'] ?? ''),
+                'operating_system'      => $str($n['operatingSystem'] ?? ''),
+                'file_size'             => $str($n['fileSize'] ?? ''),
+                'release_date'          => substr($str($n['datePublished'] ?? $n['dateModified'] ?? ''), 0, 10),
+                'developer_name'        => $str($n['author'] ?? $n['publisher'] ?? $n['creator'] ?? ''),
+                'official_download_url' => $str($n['downloadUrl'] ?? $n['installUrl'] ?? ''),
+                'minimum_requirements'  => $str($n['softwareRequirements'] ?? $n['memoryRequirements'] ?? ''),
+                'category_hint'         => $str($n['applicationCategory'] ?? ''),
+            ], static fn($v) => $v !== '');
+
+            // Screenshots (string | object | list of either).
+            $shots = self::ldUrls($n['screenshot'] ?? $n['image'] ?? null);
+            if ($shots) {
+                $out['screenshots'] = $shots;
+            }
+
+            // Price → free / paid.
+            $offers = $n['offers'] ?? null;
+            if (is_array($offers)) {
+                $offer = isset($offers['price']) || isset($offers['@type']) ? $offers : ($offers[0] ?? []);
+                if (is_array($offer) && array_key_exists('price', $offer)) {
+                    $price = (string) $offer['price'];
+                    $out['price_type'] = ($price === '' || (float) $price === 0.0) ? 'free' : 'paid';
+                }
+            }
+            return $out;
+        }
+        return [];
+    }
+
+    /** Flatten @graph / nested / list JSON-LD into a flat node list. */
+    private static function collectLdNodes(mixed $data, array &$nodes): void
+    {
+        if (!is_array($data)) {
+            return;
+        }
+        if (isset($data['@graph']) && is_array($data['@graph'])) {
+            foreach ($data['@graph'] as $g) {
+                self::collectLdNodes($g, $nodes);
+            }
+        }
+        if (isset($data['@type'])) {
+            $nodes[] = $data;
+        }
+        foreach ($data as $k => $v) {
+            if (is_int($k) && is_array($v)) {
+                self::collectLdNodes($v, $nodes);
+            }
+        }
+    }
+
+    /** Normalise a schema.org image/screenshot value into a list of URLs. */
+    private static function ldUrls(mixed $val): array
+    {
+        $urls = [];
+        $push = static function ($v) use (&$urls): void {
+            if (is_string($v) && preg_match('~^https?://~i', $v)) {
+                $urls[] = $v;
+            } elseif (is_array($v) && is_string($v['url'] ?? null) && preg_match('~^https?://~i', $v['url'])) {
+                $urls[] = $v['url'];
+            }
+        };
+        if (is_array($val) && array_is_list($val)) {
+            foreach ($val as $v) { $push($v); }
+        } else {
+            $push($val);
+        }
+        return array_slice(array_values(array_unique($urls)), 0, 6);
+    }
+
     private static function uniqueSlug(string $base): string
     {
         $base = $base ?: 'app';
