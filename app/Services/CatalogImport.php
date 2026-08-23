@@ -244,6 +244,64 @@ final class CatalogImport
     }
 
     /**
+     * Candidate apps for the Discover page, for a given platform slug
+     * ('windows' | 'macos' | 'ios' | 'android' | '' = all). Same 9-field shape
+     * as POPULAR. All links are official vendor / store pages.
+     * @return array<int,array<int,string>>
+     */
+    public static function discoverCatalog(string $osSlug = ''): array
+    {
+        $all = array_merge(self::POPULAR, self::DISCOVER_EXTRA);
+        if ($osSlug === '') {
+            return $all;
+        }
+        return array_values(array_filter($all, static fn($a) => ($a[7] ?? 'windows') === $osSlug));
+    }
+
+    /** Extra curated apps for macOS / iOS / Android discovery (official links). */
+    private const DISCOVER_EXTRA = [
+        // ---- macOS ----
+        ['Final Cut Pro', 'Apple', 'https://www.apple.com/final-cut-pro/', 'https://apps.apple.com/app/id424389933', 'Professional video editing built for the Mac.', 'video-editors', 'paid', 'macos', 'macOS'],
+        ['Logic Pro', 'Apple', 'https://www.apple.com/logic-pro/', 'https://apps.apple.com/app/id634148309', 'Professional music production software for macOS.', 'audio', 'paid', 'macos', 'macOS'],
+        ['Xcode', 'Apple', 'https://developer.apple.com/xcode/', 'https://apps.apple.com/app/id497799835', "Apple's IDE for building apps across Apple platforms.", 'developer-tools', 'free', 'macos', 'macOS'],
+        ['Homebrew', 'Homebrew', 'https://brew.sh/', 'https://brew.sh/', 'The missing package manager for macOS.', 'developer-tools', 'open_source', 'macos', 'macOS'],
+        ['iTerm2', 'George Nachman', 'https://iterm2.com/', 'https://iterm2.com/downloads.html', 'A powerful terminal emulator for macOS.', 'developer-tools', 'open_source', 'macos', 'macOS'],
+        ['Alfred', 'Running with Crayons', 'https://www.alfredapp.com/', 'https://www.alfredapp.com/', 'Productivity launcher and workflow app for macOS.', 'utilities', 'freemium', 'macos', 'macOS'],
+        ['Rectangle', 'Ryan Hanson', 'https://rectangleapp.com/', 'https://rectangleapp.com/', 'Move and resize windows with keyboard shortcuts.', 'utilities', 'open_source', 'macos', 'macOS'],
+        ['CleanMyMac', 'MacPaw', 'https://macpaw.com/cleanmymac', 'https://macpaw.com/cleanmymac', 'Cleaning, malware removal and optimization for Mac.', 'utilities', 'paid', 'macos', 'macOS'],
+        ['Parallels Desktop', 'Parallels', 'https://www.parallels.com/products/desktop/', 'https://www.parallels.com/products/desktop/', 'Run Windows and other OSes on your Mac.', 'utilities', 'paid', 'macos', 'macOS'],
+        ['Things 3', 'Cultured Code', 'https://culturedcode.com/things/', 'https://culturedcode.com/things/', 'Award-winning personal task manager for Mac.', 'productivity', 'paid', 'macos', 'macOS'],
+        ['Fantastical', 'Flexibits', 'https://flexibits.com/fantastical', 'https://flexibits.com/fantastical', 'A calendar app that helps you get more done.', 'productivity', 'freemium', 'macos', 'macOS'],
+        ['Sketch', 'Sketch B.V.', 'https://www.sketch.com/', 'https://www.sketch.com/', 'Digital design toolkit for Mac.', 'graphics', 'paid', 'macos', 'macOS'],
+        // ---- iOS ----
+        ['WhatsApp Messenger', 'WhatsApp Inc.', 'https://www.whatsapp.com/', 'https://apps.apple.com/app/id310633997', 'Simple, reliable, private messaging and calling.', 'communication', 'free', 'ios', 'iOS'],
+        ['Instagram', 'Instagram, Inc.', 'https://www.instagram.com/', 'https://apps.apple.com/app/id389801252', 'Photo and video sharing social network.', 'social', 'free', 'ios', 'iOS'],
+        ['Telegram Messenger', 'Telegram FZ-LLC', 'https://telegram.org/', 'https://apps.apple.com/app/id686449807', 'Fast, secure cloud-based messaging.', 'communication', 'free', 'ios', 'iOS'],
+        ['Signal', 'Signal Foundation', 'https://signal.org/', 'https://apps.apple.com/app/id874139669', 'Private messenger with end-to-end encryption.', 'communication', 'open_source', 'ios', 'iOS'],
+        ['Spotify', 'Spotify', 'https://www.spotify.com/', 'https://apps.apple.com/app/id324684580', 'Music and podcast streaming.', 'audio', 'freemium', 'ios', 'iOS'],
+        ['Google Chrome', 'Google', 'https://www.google.com/chrome/', 'https://apps.apple.com/app/id535886823', 'Fast, secure web browser from Google.', 'browsers', 'free', 'ios', 'iOS'],
+        ['Microsoft Outlook', 'Microsoft', 'https://www.microsoft.com/microsoft-365/outlook/', 'https://apps.apple.com/app/id951937596', 'Email and calendar in one app.', 'productivity', 'free', 'ios', 'iOS'],
+        ['Procreate', 'Savage Interactive', 'https://procreate.com/', 'https://apps.apple.com/app/id425073498', 'Powerful sketching, painting and illustration.', 'graphics', 'paid', 'ios', 'iOS'],
+        ['CapCut', 'Bytedance', 'https://www.capcut.com/', 'https://apps.apple.com/app/id1500855883', 'All-in-one video editor for mobile.', 'video-editors', 'freemium', 'ios', 'iOS'],
+        ['Notion', 'Notion Labs', 'https://www.notion.so/', 'https://apps.apple.com/app/id1232780281', 'Notes, docs and projects in one workspace.', 'productivity', 'freemium', 'ios', 'iOS'],
+        ['1Password', 'AgileBits', 'https://1password.com/', 'https://apps.apple.com/app/id1511601750', 'Secure password manager.', 'security', 'paid', 'ios', 'iOS'],
+        ['Duolingo', 'Duolingo', 'https://www.duolingo.com/', 'https://apps.apple.com/app/id570060128', 'Learn languages for free.', 'education', 'freemium', 'ios', 'iOS'],
+        // ---- Android ----
+        ['WhatsApp Messenger', 'WhatsApp LLC', 'https://www.whatsapp.com/', 'https://play.google.com/store/apps/details?id=com.whatsapp', 'Simple, reliable, private messaging and calling.', 'communication', 'free', 'android', 'Android'],
+        ['Telegram', 'Telegram FZ-LLC', 'https://telegram.org/', 'https://play.google.com/store/apps/details?id=org.telegram.messenger', 'Fast, secure cloud-based messaging.', 'communication', 'free', 'android', 'Android'],
+        ['Signal Private Messenger', 'Signal Foundation', 'https://signal.org/', 'https://play.google.com/store/apps/details?id=org.thoughtcrime.securesms', 'Private messenger with end-to-end encryption.', 'communication', 'open_source', 'android', 'Android'],
+        ['VLC for Android', 'VideoLAN', 'https://www.videolan.org/vlc/download-android.html', 'https://play.google.com/store/apps/details?id=org.videolan.vlc', 'Free and open-source media player.', 'media-players', 'open_source', 'android', 'Android'],
+        ['Spotify', 'Spotify AB', 'https://www.spotify.com/', 'https://play.google.com/store/apps/details?id=com.spotify.music', 'Music and podcast streaming.', 'audio', 'freemium', 'android', 'Android'],
+        ['Google Chrome', 'Google LLC', 'https://www.google.com/chrome/', 'https://play.google.com/store/apps/details?id=com.android.chrome', 'Fast, secure web browser from Google.', 'browsers', 'free', 'android', 'Android'],
+        ['Microsoft Office', 'Microsoft', 'https://www.microsoft.com/microsoft-365', 'https://play.google.com/store/apps/details?id=com.microsoft.office.officehubrow', 'Word, Excel and PowerPoint in one app.', 'office', 'free', 'android', 'Android'],
+        ['CapCut', 'Bytedance Pte. Ltd.', 'https://www.capcut.com/', 'https://play.google.com/store/apps/details?id=com.lemon.lvoverseas', 'All-in-one video editor for mobile.', 'video-editors', 'freemium', 'android', 'Android'],
+        ['Notion', 'Notion Labs', 'https://www.notion.so/', 'https://play.google.com/store/apps/details?id=notion.id', 'Notes, docs and projects in one workspace.', 'productivity', 'freemium', 'android', 'Android'],
+        ['Bitwarden', 'Bitwarden Inc.', 'https://bitwarden.com/', 'https://play.google.com/store/apps/details?id=com.x8bit.bitwarden', 'Open-source password manager.', 'security', 'open_source', 'android', 'Android'],
+        ['Brave Browser', 'Brave Software', 'https://brave.com/', 'https://play.google.com/store/apps/details?id=com.brave.browser', 'Privacy browser that blocks ads and trackers.', 'browsers', 'free', 'android', 'Android'],
+        ['Duolingo', 'Duolingo', 'https://www.duolingo.com/', 'https://play.google.com/store/apps/details?id=com.duolingo', 'Learn languages for free.', 'education', 'freemium', 'android', 'Android'],
+    ];
+
+    /**
      * Find a curated popular app by (normalised) name — used by the admin
      * auto-fill so well-known apps resolve to their OFFICIAL vendor link.
      * @return array<string,mixed>|null lookup DTO

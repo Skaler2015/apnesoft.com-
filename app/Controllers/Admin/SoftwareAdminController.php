@@ -625,6 +625,61 @@ final class SoftwareAdminController extends AdminController
         ]);
     }
 
+    /** GET /admin/software/discover — platform-aware feed of apps to publish + recently published. */
+    public function discover(array $args = []): never
+    {
+        $this->requirePermission('software.manage');
+        \App\Services\Dedupe::ensureSchema();
+        \App\Services\Dedupe::backfill();
+
+        $slug = (string) Session::get('admin_platform', '');
+        $kw = ['windows' => 'windows', 'macos' => 'mac', 'mac' => 'mac', 'ios' => 'ios', 'android' => 'android'][$slug] ?? '';
+
+        // Candidate apps for this platform that aren't on the site yet.
+        $candidates = [];
+        foreach (\App\Services\CatalogImport::discoverCatalog($slug) as $a) {
+            $key = \App\Services\Dedupe::key((string) $a[0]);
+            if ($key === '' || Database::scalar('SELECT id FROM software WHERE dedupe_key = :k LIMIT 1', ['k' => $key])) {
+                continue;
+            }
+            $host = parse_url((string) ($a[2] ?? ''), PHP_URL_HOST) ?: '';
+            $candidates[$key] = [
+                'name'      => $a[0],
+                'developer' => $a[1] ?? '',
+                'website'   => $a[2] ?? '',
+                'desc'      => $a[4] ?? '',
+                'price'     => $a[6] ?? '',
+                'os_label'  => $a[8] ?? 'Windows',
+                'logo'      => $host ? 'https://www.google.com/s2/favicons?domain=' . $host . '&sz=64' : '',
+            ];
+            if (count($candidates) >= 60) {
+                break;
+            }
+        }
+        $candidates = array_values($candidates);
+
+        // Recently published for this platform.
+        $params = [];
+        $where = '';
+        if ($kw !== '') {
+            $where = 'WHERE operating_system LIKE :l';
+            $params['l'] = '%' . $kw . '%';
+        }
+        $recent = Database::all(
+            "SELECT id, name, slug, logo, short_description, operating_system, status, created_at
+             FROM software $where ORDER BY created_at DESC LIMIT 24",
+            $params
+        );
+
+        $this->render('admin/software/discover', [
+            'title'        => 'Discover',
+            'candidates'   => $candidates,
+            'recent'       => $recent,
+            'platformSlug' => $slug,
+            'panelLabel'   => \App\Controllers\Admin\PlatformController::current()['label'] ?? null,
+        ]);
+    }
+
     /** GET /admin/publishing — a small publishing dashboard. */
     public function dashboard(array $args = []): never
     {

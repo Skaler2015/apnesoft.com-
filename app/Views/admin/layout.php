@@ -12,6 +12,7 @@ $path = $_SERVER['REQUEST_URI'] ?? '';
 $nav = [
     '/admin/platform'     => ['Platforms', '▚'],
     '/admin/software/new' => ['Add Software', '➕'],
+    '/admin/software/discover' => ['Discover', '🧭'],
     '/admin/software/bulk' => ['Bulk publish', '🚀'],
     '/admin/software'     => ['All Software', '▤'],
 ];
