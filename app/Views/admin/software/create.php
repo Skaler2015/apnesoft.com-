@@ -1260,3 +1260,24 @@ $action = $action ?? base_url('/admin/software/new');
     });
 })();
 </script>
+
+<script>
+(function () {
+    var form = document.querySelector('.admin-form'); if (!form) return;
+    var sizeEl = form.querySelector('[name="file_size"]'); if (!sizeEl) return;
+    var row = document.createElement('div'); row.className = 'tool-row';
+    ['KB', 'MB', 'GB'].forEach(function (u) {
+        var b = document.createElement('button');
+        b.type = 'button'; b.className = 'mini-tool'; b.textContent = u; b.title = u + ' लगाएँ'; b.style.marginTop = '6px';
+        b.addEventListener('click', function () {
+            var m = (sizeEl.value || '').match(/[\d.]+/);      // पहला नंबर
+            var num = m ? m[0] : '';
+            sizeEl.value = num ? (num + ' ' + u) : u;
+            sizeEl.dispatchEvent(new Event('input'));
+            sizeEl.focus();
+        });
+        row.appendChild(b);
+    });
+    (sizeEl.closest('label') || sizeEl.parentNode).appendChild(row);
+})();
+</script>
