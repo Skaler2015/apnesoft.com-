@@ -42,11 +42,13 @@ final class FinderController extends Controller
 
         $categoryId = (int) (Database::scalar('SELECT id FROM categories WHERE slug = :s', ['s' => $need]) ?: 0);
         if ($categoryId) {
-            $where[] = '(s.category_id = :cat OR s.subcategory_id = :cat)';
+            $where[] = '(s.category_id = :cat OR s.subcategory_id = :cat2)';
             $params['cat'] = $categoryId;
+            $params['cat2'] = $categoryId;
         } elseif ($need !== '') {
-            $where[] = '(s.name LIKE :need OR s.short_description LIKE :need)';
+            $where[] = '(s.name LIKE :need OR s.short_description LIKE :need2)';
             $params['need'] = '%' . $need . '%';
+            $params['need2'] = '%' . $need . '%';
         }
         if ($osSlug !== '') {
             $joins .= ' JOIN software_operating_systems sos ON sos.software_id = s.id

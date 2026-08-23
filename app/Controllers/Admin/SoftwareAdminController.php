@@ -157,8 +157,9 @@ final class SoftwareAdminController extends AdminController
             $params['st'] = $status;
         }
         if ($q !== '') {
-            $where[] = '(name LIKE :q OR developer_name LIKE :q)';
+            $where[] = '(name LIKE :q OR developer_name LIKE :q2)';
             $params['q'] = '%' . $q . '%';
+            $params['q2'] = '%' . $q . '%';
         }
         $page = $this->page();
         $offset = ($page - 1) * 30;

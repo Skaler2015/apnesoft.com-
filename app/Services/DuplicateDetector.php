@@ -31,8 +31,8 @@ final class DuplicateDetector
                 $host = self::host($data[$field]);
                 if ($host !== '') {
                     $row = Database::first(
-                        'SELECT * FROM software WHERE official_website LIKE :h OR official_download_url LIKE :h LIMIT 1',
-                        ['h' => '%' . $host . '%']
+                        'SELECT * FROM software WHERE official_website LIKE :h OR official_download_url LIKE :h2 LIMIT 1',
+                        ['h' => '%' . $host . '%', 'h2' => '%' . $host . '%']
                     );
                     if ($row && self::nameSimilarity($data['name'] ?? '', $row['name']) >= 0.6) {
                         return ['match' => $row, 'confidence' => 92, 'reason' => 'Same official host + similar name'];

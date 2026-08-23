@@ -115,9 +115,9 @@ final class Software
     public static function byCategory(int $categoryId, int $limit = 5): array
     {
         return Database::all(
-            'SELECT * FROM software WHERE status = :st AND (category_id = :c OR subcategory_id = :c)' . self::platformAnd() . '
+            'SELECT * FROM software WHERE status = :st AND (category_id = :c OR subcategory_id = :c2)' . self::platformAnd() . '
              ORDER BY (views + download_clicks * 2) DESC, trust_score DESC LIMIT ' . (int) $limit,
-            ['st' => self::PUBLISHED, 'c' => $categoryId]
+            ['st' => self::PUBLISHED, 'c' => $categoryId, 'c2' => $categoryId]
         );
     }
 
@@ -157,8 +157,9 @@ final class Software
         }
 
         if (!empty($f['category_id'])) {
-            $where[] = '(s.category_id = :cat OR s.subcategory_id = :cat)';
+            $where[] = '(s.category_id = :cat OR s.subcategory_id = :cat2)';
             $params['cat'] = (int) $f['category_id'];
+            $params['cat2'] = (int) $f['category_id'];
         }
         if (!empty($f['os_slug'])) {
             $joins .= ' JOIN software_operating_systems sos ON sos.software_id = s.id
@@ -185,8 +186,10 @@ final class Software
             $params['trust'] = (int) $f['trust_min'];
         }
         if (!empty($f['q'])) {
-            $where[] = '(s.name LIKE :q OR s.short_description LIKE :q OR s.developer_name LIKE :q)';
+            $where[] = '(s.name LIKE :q OR s.short_description LIKE :q2 OR s.developer_name LIKE :q3)';
             $params['q'] = '%' . $f['q'] . '%';
+            $params['q2'] = '%' . $f['q'] . '%';
+            $params['q3'] = '%' . $f['q'] . '%';
         }
 
         $order = match ($f['sort'] ?? 'popular') {
@@ -238,17 +241,19 @@ final class Software
 
         $like = '%' . $query . '%';
         $params['like'] = $like;
+        $params['like2'] = $like;
 
         // Prefer FULLTEXT relevance; fall back to LIKE ordering.
         $sql = "SELECT *,
                     MATCH(name, short_description, long_description) AGAINST (:q IN NATURAL LANGUAGE MODE) AS relevance
                 FROM software
                 WHERE status = :st $priceFilter
-                  AND (MATCH(name, short_description, long_description) AGAINST (:q IN NATURAL LANGUAGE MODE)
-                       OR name LIKE :like OR developer_name LIKE :like)
+                  AND (MATCH(name, short_description, long_description) AGAINST (:q2 IN NATURAL LANGUAGE MODE)
+                       OR name LIKE :like OR developer_name LIKE :like2)
                 ORDER BY relevance DESC, views DESC
                 LIMIT " . (int) $limit;
         $params['q'] = $query;
+        $params['q2'] = $query;
 
         try {
             return Database::all($sql, $params);
@@ -256,9 +261,9 @@ final class Software
             // FULLTEXT may be unavailable on some engines — fall back to LIKE.
             return Database::all(
                 "SELECT * FROM software WHERE status = :st $priceFilter
-                 AND (name LIKE :like OR short_description LIKE :like OR developer_name LIKE :like)
+                 AND (name LIKE :like OR short_description LIKE :like2 OR developer_name LIKE :like3)
                  ORDER BY views DESC LIMIT " . (int) $limit,
-                ['st' => self::PUBLISHED, 'like' => $like]
+                ['st' => self::PUBLISHED, 'like' => $like, 'like2' => $like, 'like3' => $like]
             );
         }
     }
