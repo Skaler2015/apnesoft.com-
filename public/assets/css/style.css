@@ -105,6 +105,18 @@ h1,h2,h3,h4{line-height:1.2;margin:0 0 .4em}
 .card-foot{display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--border);padding-top:10px}
 .trust{font-size:.78rem;font-weight:700}
 .trust-green{color:var(--green)}.trust-yellow{color:var(--yellow)}.trust-red{color:var(--red)}
+/* Platform switcher bar (Windows / Mac / iOS / Android subdomains) */
+.platform-bar{background:var(--surface-2);border-bottom:1px solid var(--border)}
+.platform-bar-inner{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:7px 0}
+.platform-bar-label{font-size:.8rem;color:var(--muted);font-weight:600}
+.platform-switch{display:flex;gap:6px;flex-wrap:wrap}
+.platform-switch a{font-size:.82rem;font-weight:700;padding:.28em .7em;border-radius:999px;
+  color:var(--text);border:1px solid var(--border);background:var(--surface);text-decoration:none;transition:.15s}
+.platform-switch a:hover{border-color:var(--brand);color:var(--brand)}
+.platform-switch a.is-active{background:var(--brand);border-color:var(--brand);color:#fff}
+.brand-plat{font-size:.62em;font-weight:800;text-transform:uppercase;letter-spacing:.04em;
+  background:color-mix(in srgb,var(--brand) 16%,transparent);color:var(--brand);
+  padding:.2em .5em;border-radius:5px;vertical-align:middle;margin-left:2px}
 /* Directory-style licence tags (FREE / OPEN SOURCE / TRIAL …) */
 .license-badge{display:inline-block;font-size:.68rem;font-weight:800;letter-spacing:.04em;
   text-transform:uppercase;padding:.28em .6em;border-radius:6px;line-height:1;white-space:nowrap}

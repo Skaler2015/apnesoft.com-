@@ -24,7 +24,8 @@ INSERT INTO operating_systems (name, slug, icon, sort_order) VALUES
  ('Windows', 'windows', '🪟', 1),
  ('macOS', 'macos', '', 2),
  ('Linux', 'linux', '🐧', 3),
- ('Android', 'android', '🤖', 4)
+ ('Android', 'android', '🤖', 4),
+ ('iOS', 'ios', '', 5)
 ON DUPLICATE KEY UPDATE name = VALUES(name);
 
 -- --- Categories --------------------------------------------------------------

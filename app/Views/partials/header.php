@@ -1,4 +1,22 @@
-<?php $siteName = setting('site_name', 'SoftwareHub'); ?>
+<?php
+$siteName = setting('site_name', 'SoftwareHub');
+$curOs = \App\Core\SiteContext::os();
+$curLabel = \App\Core\SiteContext::label($curOs);
+$platIcon = ['windows' => '🪟', 'macos' => '', 'ios' => '', 'android' => '🤖'];
+?>
+<div class="platform-bar">
+    <div class="container platform-bar-inner">
+        <span class="platform-bar-label">Download software for:</span>
+        <nav class="platform-switch" aria-label="Choose platform">
+            <?php foreach (\App\Core\SiteContext::platforms() as $slug => $label): ?>
+                <a href="<?= e(\App\Core\SiteContext::platformUrl($slug)) ?>"
+                   class="<?= $slug === $curOs ? 'is-active' : '' ?>">
+                    <?= ($platIcon[$slug] ?? '') ?> <?= e($label) ?>
+                </a>
+            <?php endforeach; ?>
+        </nav>
+    </div>
+</div>
 <header class="site-header">
     <div class="container header-inner">
         <a class="brand" href="<?= e(base_url('/')) ?>">
@@ -7,7 +25,7 @@
             <?php else: ?>
                 <span class="brand-mark" aria-hidden="true">◆</span>
             <?php endif; ?>
-            <span class="brand-name"><?= e($siteName) ?></span>
+            <span class="brand-name"><?= e($siteName) ?><?php if ($curLabel): ?> <span class="brand-plat"><?= e($curLabel) ?></span><?php endif; ?></span>
         </a>
 
         <button class="nav-toggle" aria-label="Toggle menu" aria-expanded="false" data-nav-toggle>

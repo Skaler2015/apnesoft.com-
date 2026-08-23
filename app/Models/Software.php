@@ -14,6 +14,40 @@ final class Software
 {
     public const PUBLISHED = 'published';
 
+    /** Current platform filter (set per-request from the subdomain), or null. */
+    private static ?string $platformOs = null;
+
+    /** LIKE patterns for the operating_system text column, per platform. */
+    private const PLATFORM_LIKE = [
+        'windows' => '%windows%', 'macos' => '%mac%', 'ios' => '%ios%',
+        'android' => '%android%', 'linux' => '%linux%',
+    ];
+
+    /** Restrict public listings to one platform's software (null = all). */
+    public static function setPlatform(?string $osSlug): void
+    {
+        self::$platformOs = ($osSlug !== null && isset(self::PLATFORM_LIKE[$osSlug])) ? $osSlug : null;
+    }
+
+    /** Bare SQL condition for the active platform, or '' when none. */
+    private static function platformCond(string $prefix = 's'): string
+    {
+        if (self::$platformOs === null) {
+            return '';
+        }
+        // The pattern is a fixed whitelist literal — safe to inline (no user input).
+        $like = self::PLATFORM_LIKE[self::$platformOs];
+        $col = $prefix === '' ? 'operating_system' : $prefix . '.operating_system';
+        return "$col LIKE '$like'";
+    }
+
+    /** Platform condition prefixed with ' AND ' for inline concatenation. */
+    private static function platformAnd(string $prefix = ''): string
+    {
+        $c = self::platformCond($prefix);
+        return $c === '' ? '' : ' AND ' . $c;
+    }
+
     public static function find(int $id): ?array
     {
         return Database::first('SELECT * FROM software WHERE id = :id', ['id' => $id]);
@@ -36,7 +70,7 @@ final class Software
     public static function popular(int $limit = 12): array
     {
         return Database::all(
-            'SELECT * FROM software WHERE status = :st
+            'SELECT * FROM software WHERE status = :st' . self::platformAnd() . '
              ORDER BY (views + download_clicks * 2) DESC, trust_score DESC LIMIT ' . (int) $limit,
             ['st' => self::PUBLISHED]
         );
@@ -45,7 +79,7 @@ final class Software
     public static function recentlyUpdated(int $limit = 12): array
     {
         return Database::all(
-            'SELECT * FROM software WHERE status = :st AND last_updated IS NOT NULL
+            'SELECT * FROM software WHERE status = :st AND last_updated IS NOT NULL' . self::platformAnd() . '
              ORDER BY last_updated DESC LIMIT ' . (int) $limit,
             ['st' => self::PUBLISHED]
         );
@@ -54,7 +88,7 @@ final class Software
     public static function newest(int $limit = 12): array
     {
         return Database::all(
-            'SELECT * FROM software WHERE status = :st
+            'SELECT * FROM software WHERE status = :st' . self::platformAnd() . '
              ORDER BY COALESCE(discovered_at, created_at) DESC LIMIT ' . (int) $limit,
             ['st' => self::PUBLISHED]
         );
@@ -63,7 +97,7 @@ final class Software
     public static function byPrice(string $priceType, int $limit = 12): array
     {
         return Database::all(
-            'SELECT * FROM software WHERE status = :st AND price_type = :p
+            'SELECT * FROM software WHERE status = :st AND price_type = :p' . self::platformAnd() . '
              ORDER BY (views + 1) DESC LIMIT ' . (int) $limit,
             ['st' => self::PUBLISHED, 'p' => $priceType]
         );
@@ -72,7 +106,7 @@ final class Software
     public static function openSource(int $limit = 12): array
     {
         return Database::all(
-            'SELECT * FROM software WHERE status = :st AND is_open_source = 1
+            'SELECT * FROM software WHERE status = :st AND is_open_source = 1' . self::platformAnd() . '
              ORDER BY stars DESC, views DESC LIMIT ' . (int) $limit,
             ['st' => self::PUBLISHED]
         );
@@ -81,7 +115,7 @@ final class Software
     public static function byCategory(int $categoryId, int $limit = 5): array
     {
         return Database::all(
-            'SELECT * FROM software WHERE status = :st AND (category_id = :c OR subcategory_id = :c)
+            'SELECT * FROM software WHERE status = :st AND (category_id = :c OR subcategory_id = :c)' . self::platformAnd() . '
              ORDER BY (views + download_clicks * 2) DESC, trust_score DESC LIMIT ' . (int) $limit,
             ['st' => self::PUBLISHED, 'c' => $categoryId]
         );
@@ -102,7 +136,7 @@ final class Software
     public static function lowEndPc(int $maxRamMb = 4096, int $limit = 12): array
     {
         return Database::all(
-            'SELECT * FROM software WHERE status = :st AND min_ram_mb IS NOT NULL AND min_ram_mb <= :ram
+            'SELECT * FROM software WHERE status = :st AND min_ram_mb IS NOT NULL AND min_ram_mb <= :ram' . self::platformAnd() . '
              ORDER BY min_ram_mb ASC, views DESC LIMIT ' . (int) $limit,
             ['st' => self::PUBLISHED, 'ram' => $maxRamMb]
         );
@@ -117,6 +151,10 @@ final class Software
         $where = ['s.status = :st'];
         $params = ['st' => self::PUBLISHED];
         $joins = '';
+
+        if (($pc = self::platformCond('s')) !== '') {
+            $where[] = $pc;
+        }
 
         if (!empty($f['category_id'])) {
             $where[] = '(s.category_id = :cat OR s.subcategory_id = :cat)';
@@ -196,6 +234,7 @@ final class Software
         if (str_contains($normalized, 'open source') || str_contains($normalized, 'open-source')) {
             $priceFilter .= ' AND is_open_source = 1';
         }
+        $priceFilter .= self::platformAnd(''); // restrict to the current subdomain's platform
 
         $like = '%' . $query . '%';
         $params['like'] = $like;

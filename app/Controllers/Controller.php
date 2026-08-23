@@ -16,6 +16,9 @@ abstract class Controller
     public function __construct(Request $request)
     {
         $this->request = $request;
+        // Public pages show only the current subdomain's platform (Windows / Mac /
+        // iOS / Android). Admin controllers override this back to null (see below).
+        \App\Models\Software::setPlatform(\App\Core\SiteContext::os());
     }
 
     protected function view(string $view, array $data = [], string $layout = 'layouts/app'): never

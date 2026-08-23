@@ -16,7 +16,18 @@ if (!function_exists('e')) {
 if (!function_exists('base_url')) {
     function base_url(string $path = ''): string
     {
-        $base = rtrim((string) Config::get('app.url', ''), '/');
+        // Build from the current host so each platform subdomain keeps its own
+        // links (mac.apnesoft.com stays on mac.apnesoft.com). Falls back to the
+        // configured APP_URL on the CLI (cron/sitemap), where there is no host.
+        $host = (string) ($_SERVER['HTTP_HOST'] ?? '');
+        if ($host !== '') {
+            $https = (($_SERVER['HTTPS'] ?? '') !== '' && ($_SERVER['HTTPS'] ?? '') !== 'off')
+                || ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https'
+                || (int) ($_SERVER['SERVER_PORT'] ?? 0) === 443;
+            $base = ($https ? 'https' : 'http') . '://' . $host;
+        } else {
+            $base = rtrim((string) Config::get('app.url', ''), '/');
+        }
         return $base . '/' . ltrim($path, '/');
     }
 }

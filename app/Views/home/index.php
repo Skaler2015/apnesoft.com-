@@ -56,10 +56,7 @@ use App\Core\View;
 
 <?= View::partial('partials/section', ['heading' => 'Free Software', 'items' => $free, 'moreUrl' => '/software?price=free']) ?>
 <?= View::partial('partials/section', ['heading' => 'Open Source', 'items' => $openSource, 'moreUrl' => '/software?open_source=1']) ?>
-<?= View::partial('partials/section', ['heading' => 'Windows Software', 'items' => $windows, 'moreUrl' => '/os/windows']) ?>
-<?= View::partial('partials/section', ['heading' => 'macOS Software', 'items' => $macos, 'moreUrl' => '/os/macos']) ?>
-<?= View::partial('partials/section', ['heading' => 'Linux Software', 'items' => $linux, 'moreUrl' => '/os/linux']) ?>
-<?= View::partial('partials/section', ['heading' => 'Best Software for Low-End PCs', 'items' => $lowEnd, 'moreUrl' => '/low-end-pc', 'subtitle' => 'Lightweight apps that run smoothly on modest hardware']) ?>
+<?= View::partial('partials/section', ['heading' => 'Best for Low-End Devices', 'items' => $lowEnd, 'moreUrl' => '/low-end-pc', 'subtitle' => 'Lightweight apps that run smoothly on modest hardware']) ?>
 
 <?php if (!empty($updates)): ?>
 <section class="home-section">

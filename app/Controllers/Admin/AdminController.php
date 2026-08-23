@@ -12,6 +12,13 @@ use App\Core\View;
 
 abstract class AdminController extends Controller
 {
+    public function __construct(\App\Core\Request $request)
+    {
+        parent::__construct($request);
+        // The admin panel manages every platform, so it is never OS-filtered.
+        \App\Models\Software::setPlatform(null);
+    }
+
     protected function render(string $view, array $data = []): never
     {
         $data['_admin'] = Auth::user();
