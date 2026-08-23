@@ -40,7 +40,7 @@ final class SoftwareAdminController extends AdminController
             $page = \App\Services\Publisher::fetch($site);
             if ($page !== null) {
                 $html = $page['html'];
-                $data = \App\Services\SoftwareLookup::enrichFromPage($data, $html);
+                $data = \App\Services\SoftwareLookup::enrichFromPage($data, $html, $page['url']);
             }
         }
 
@@ -80,7 +80,7 @@ final class SoftwareAdminController extends AdminController
         if ($lookup !== null) {
             $site = trim((string) ($lookup['official_website'] ?? $lookup['official_download_url'] ?? ''));
             if ($site !== '' && ($page = \App\Services\Publisher::fetch($site)) !== null) {
-                $lookup = \App\Services\SoftwareLookup::enrichFromPage($lookup, $page['html']);
+                $lookup = \App\Services\SoftwareLookup::enrichFromPage($lookup, $page['html'], $page['url']);
             }
         }
         $out = [

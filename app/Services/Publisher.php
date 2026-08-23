@@ -41,7 +41,7 @@ final class Publisher
         // official page's schema.org data before creating the record.
         $site = trim((string) ($d['official_website'] ?? $d['official_download_url'] ?? ''));
         if ($site !== '' && ($page = self::fetch($site)) !== null) {
-            $d = SoftwareLookup::enrichFromPage($d, $page['html']);
+            $d = SoftwareLookup::enrichFromPage($d, $page['html'], $page['url']);
         }
 
         // Support publishing to several platforms at once (comma-separated slugs).
@@ -260,6 +260,66 @@ final class Publisher
             return $out;
         }
         return [];
+    }
+
+    /**
+     * Find the best real logo on a page: prefer apple-touch-icon (usually a
+     * clean square product logo), then the largest declared icon. Returns an
+     * absolute URL, or null. This beats a generic domain favicon.
+     */
+    public static function extractIcon(string $html, string $baseUrl): ?string
+    {
+        if (!preg_match_all('~<link\b[^>]*\brel=["\'][^"\']*\b(?:apple-touch-icon|icon)\b[^"\']*["\'][^>]*>~i', $html, $tags)) {
+            return null;
+        }
+        $cands = [];
+        foreach ($tags[0] as $tag) {
+            if (!preg_match('~\bhref=["\']([^"\']+)["\']~i', $tag, $h)) {
+                continue;
+            }
+            $href = html_entity_decode(trim($h[1]), ENT_QUOTES | ENT_HTML5);
+            if ($href === '' || str_starts_with($href, 'data:')) {
+                continue;
+            }
+            $size = 0;
+            if (preg_match('~\bsizes=["\'](\d+)~i', $tag, $s)) {
+                $size = (int) $s[1];
+            }
+            $isApple = stripos($tag, 'apple-touch-icon') !== false;
+            $isSvg = stripos($href, '.svg') !== false;
+            // Score: apple-touch-icon wins, then svg, then bigger declared size.
+            $score = ($isApple ? 1000 : 0) + ($isSvg ? 200 : 0) + $size;
+            $cands[] = ['href' => $href, 'score' => $score];
+        }
+        if (!$cands) {
+            return null;
+        }
+        usort($cands, static fn($a, $b) => $b['score'] <=> $a['score']);
+        return self::absUrl($cands[0]['href'], $baseUrl);
+    }
+
+    /** Resolve a possibly-relative URL against a base page URL. */
+    private static function absUrl(string $href, string $base): ?string
+    {
+        if ($href === '') {
+            return null;
+        }
+        if (preg_match('~^https?://~i', $href)) {
+            return $href;
+        }
+        if (str_starts_with($href, '//')) {
+            return 'https:' . $href;
+        }
+        $p = parse_url($base);
+        if (empty($p['scheme']) || empty($p['host'])) {
+            return null;
+        }
+        $root = $p['scheme'] . '://' . $p['host'];
+        if (str_starts_with($href, '/')) {
+            return $root . $href;
+        }
+        $dir = isset($p['path']) ? (string) preg_replace('~/[^/]*$~', '/', $p['path']) : '/';
+        return $root . ($dir ?: '/') . $href;
     }
 
     /** Flatten @graph / nested / list JSON-LD into a flat node list. */

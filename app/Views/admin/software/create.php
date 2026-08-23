@@ -565,10 +565,11 @@
                 if (!res.ok) { statusEl.textContent = res.message || 'Failed.'; return; }
                 var d = res.lookup || {};
                 ['name','developer_name','developer_website','official_website','official_download_url',
-                 'version','license_type','logo'].forEach(function (k) { set(k, d[k]); });
+                 'version','license_type','logo','file_size','release_date'].forEach(function (k) { set(k, d[k]); });
                 ['price_type','category_id'].forEach(function (k) {
                     if (d[k] !== undefined && d[k] !== null && d[k] !== '') { var el = document.querySelector('[name="' + k + '"]'); if (el) el.value = String(d[k]); }
                 });
+                tickOsVersions(d.operating_system);
                 var a = res.ai;
                 if (a) {
                     set('short_description', a.short_description);

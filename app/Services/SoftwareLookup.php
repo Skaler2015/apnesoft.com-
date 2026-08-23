@@ -66,12 +66,18 @@ final class SoftwareLookup
      * @param array<string,mixed> $data
      * @return array<string,mixed>
      */
-    public static function enrichFromPage(array $data, string $html): array
+    public static function enrichFromPage(array $data, string $html, string $url = ''): array
     {
         if ($html === '') {
             return $data;
         }
         $ld = Publisher::parseJsonLd($html);
+
+        // A real logo from the page (apple-touch-icon) beats a generic favicon.
+        $isGenericFavicon = empty($data['logo']) || str_contains((string) $data['logo'], 's2/favicons');
+        if ($url !== '' && $isGenericFavicon && ($icon = Publisher::extractIcon($html, $url)) !== null) {
+            $data['logo'] = $icon;
+        }
 
         $fill = static function (string $key, $val, bool $force = false) use (&$data): void {
             $val = is_string($val) ? trim($val) : $val;
@@ -97,11 +103,18 @@ final class SoftwareLookup
         }
 
         // Text fallbacks when the page has no structured data.
-        if (empty($data['version']) && preg_match('~\bversion\s*[:\-]?\s*v?(\d+(?:\.\d+){1,3})~i', $html, $m)) {
-            $data['version'] = $m[1];
+        $text = (string) preg_replace('~<(script|style)\b[^>]*>.*?</\1>~is', ' ', $html);
+        if (empty($data['version'])) {
+            foreach ([
+                '~\b(?:latest\s+)?version\s*[:\-]?\s*v?(\d+(?:\.\d+){1,3})~i',
+                '~\bv(?:ersion)?\.?\s*(\d+(?:\.\d+){2,3})\b~i',
+                '~\b(?:release|build)\s*[:\-]?\s*v?(\d+(?:\.\d+){1,3})~i',
+            ] as $pat) {
+                if (preg_match($pat, $text, $m)) { $data['version'] = $m[1]; break; }
+            }
         }
-        if (empty($data['file_size']) && preg_match('~\b(?:file\s*size|download\s*size|size)\s*[:\-]?\s*([\d.]+\s?(?:kb|mb|gb))~i', $html, $m)) {
-            $data['file_size'] = strtoupper(preg_replace('~\s+~', ' ', trim($m[1])));
+        if (empty($data['file_size']) && preg_match('~\b(?:file\s*size|download\s*size|installer\s*size|size)\b\s*[:\-]?\s*(\d+(?:\.\d+)?\s?(?:kb|mb|gb))~i', $text, $m)) {
+            $data['file_size'] = strtoupper((string) preg_replace('~\s+~', ' ', trim($m[1])));
         }
         return $data;
     }
