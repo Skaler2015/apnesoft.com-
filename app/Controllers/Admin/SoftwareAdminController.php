@@ -279,9 +279,17 @@ final class SoftwareAdminController extends AdminController
         if ($name === '' && $url === '') {
             $this->json(['ok' => false, 'status' => 'error', 'name' => '', 'message' => 'empty']);
         }
-        $res = \App\Services\Publisher::publish($name, $url ?: null, (string) Session::get('admin_platform', '') ?: null);
+        // Options from Discover: AI description, screenshot, target platform(s).
+        $withAi = $this->request->str('ai', '1') !== '0';
+        $shot = $this->request->str('shot', '') === '1' ? true : ($this->request->str('shot', '') === '0' ? false : null);
+        $os = trim($this->request->str('os')); // may be a comma list; blank = current panel
+        if ($os === '') {
+            $os = (string) Session::get('admin_platform', '');
+        }
+        $res = \App\Services\Publisher::publish($name, $url ?: null, $os ?: null, $withAi, $shot);
         if (($res['id'] ?? 0) > 0) {
             $this->audit('software.bulk', 'software', (int) $res['id'], $res['name']);
+            $res['version'] = (string) \App\Core\Database::scalar('SELECT version FROM software WHERE id = :i', ['i' => (int) $res['id']]);
         }
         $this->json(['ok' => true] + $res);
     }
@@ -635,30 +643,51 @@ final class SoftwareAdminController extends AdminController
         $slug = (string) Session::get('admin_platform', '');
         $kw = ['windows' => 'windows', 'macos' => 'mac', 'mac' => 'mac', 'ios' => 'ios', 'android' => 'android'][$slug] ?? '';
 
+        // Category name lookup (for filter chips + labels).
+        $catName = [];
+        foreach (Database::all('SELECT id, name, slug FROM categories ORDER BY name') as $c) {
+            $catName[$c['slug']] = $c['name'];
+        }
+
         // Candidate apps for this platform that aren't on the site yet.
         $candidates = [];
+        $catsSeen = [];
         foreach (\App\Services\CatalogImport::discoverCatalog($slug) as $a) {
             $key = \App\Services\Dedupe::key((string) $a[0]);
             if ($key === '' || Database::scalar('SELECT id FROM software WHERE dedupe_key = :k LIMIT 1', ['k' => $key])) {
                 continue;
             }
             $host = parse_url((string) ($a[2] ?? ''), PHP_URL_HOST) ?: '';
+            $catSlug = $a[5] ?? 'other';
+            $osLabel = $a[8] ?? 'Windows';
+            // Cross-platform if the label mentions more than one platform.
+            $plat = 0;
+            foreach (['windows', 'mac', 'ios', 'android', 'linux'] as $p) {
+                if (stripos($osLabel, $p) !== false) {
+                    $plat++;
+                }
+            }
             $candidates[$key] = [
                 'name'      => $a[0],
                 'developer' => $a[1] ?? '',
                 'website'   => $a[2] ?? '',
                 'desc'      => $a[4] ?? '',
+                'cat_slug'  => $catSlug,
+                'cat_name'  => $catName[$catSlug] ?? ucfirst(str_replace('-', ' ', $catSlug)),
                 'price'     => $a[6] ?? '',
-                'os_label'  => $a[8] ?? 'Windows',
+                'os_label'  => $osLabel,
+                'cross'     => $plat >= 2 ? 1 : 0,
                 'logo'      => $host ? 'https://www.google.com/s2/favicons?domain=' . $host . '&sz=64' : '',
             ];
-            if (count($candidates) >= 60) {
+            $catsSeen[$catSlug] = $catName[$catSlug] ?? ucfirst(str_replace('-', ' ', $catSlug));
+            if (count($candidates) >= 120) {
                 break;
             }
         }
         $candidates = array_values($candidates);
+        asort($catsSeen);
 
-        // Recently published for this platform.
+        // Recently published for this platform (with version).
         $params = [];
         $where = '';
         if ($kw !== '') {
@@ -666,17 +695,54 @@ final class SoftwareAdminController extends AdminController
             $params['l'] = '%' . $kw . '%';
         }
         $recent = Database::all(
-            "SELECT id, name, slug, logo, short_description, operating_system, status, created_at
-             FROM software $where ORDER BY created_at DESC LIMIT 24",
+            "SELECT id, name, slug, logo, short_description, operating_system, version, price_type, status, created_at
+             FROM software $where ORDER BY created_at DESC LIMIT 30",
             $params
         );
+
+        // Progress stats for this platform.
+        $countWhere = $kw !== '' ? 'WHERE operating_system LIKE :l' : '';
+        $total = (int) Database::scalar("SELECT COUNT(*) FROM software $countWhere", $params);
+        $weekWhere = $kw !== '' ? 'AND operating_system LIKE :l' : '';
+        $week = (int) Database::scalar("SELECT COUNT(*) FROM software WHERE created_at >= (CURRENT_DATE - INTERVAL 7 DAY) $weekWhere", $params);
+        $today = (int) Database::scalar("SELECT COUNT(*) FROM software WHERE DATE(created_at) = CURRENT_DATE $weekWhere", $params);
 
         $this->render('admin/software/discover', [
             'title'        => 'Discover',
             'candidates'   => $candidates,
             'recent'       => $recent,
+            'cats'         => $catsSeen,
+            'stats'        => ['total' => $total, 'week' => $week, 'today' => $today, 'available' => count($candidates)],
             'platformSlug' => $slug,
             'panelLabel'   => \App\Controllers\Admin\PlatformController::current()['label'] ?? null,
+            'aiReady'      => \App\Services\AiEnhancer::isConfigured(),
+        ]);
+    }
+
+    /** GET /admin/software/discover-search?q=… — live search for the Discover search box (F1). */
+    public function discoverSearch(array $args = []): never
+    {
+        $this->requirePermission('software.manage');
+        $q = trim($this->request->str('q'));
+        if (mb_strlen($q) < 2) {
+            $this->json(['ok' => false, 'message' => 'Type at least 2 letters.']);
+        }
+        $d = \App\Services\SoftwareLookup::search($q);
+        if ($d === null || empty($d['name'])) {
+            $this->json(['ok' => false, 'message' => 'No official match — try the exact name or use “Add Software”.']);
+        }
+        $key = \App\Services\Dedupe::key((string) $d['name']);
+        $published = $key !== '' && Database::scalar('SELECT id FROM software WHERE dedupe_key = :k LIMIT 1', ['k' => $key]);
+        $host = parse_url((string) ($d['official_website'] ?? ''), PHP_URL_HOST) ?: '';
+        $this->json([
+            'ok'        => true,
+            'name'      => $d['name'],
+            'developer' => $d['developer_name'] ?? '',
+            'website'   => $d['official_website'] ?? '',
+            'desc'      => $d['short_description'] ?? '',
+            'price'     => $d['price_type'] ?? '',
+            'logo'      => $d['logo'] ?? ($host ? 'https://www.google.com/s2/favicons?domain=' . $host . '&sz=64' : ''),
+            'published' => $published ? 1 : 0,
         ]);
     }
 

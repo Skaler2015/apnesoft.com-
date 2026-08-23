@@ -20,7 +20,7 @@ final class Publisher
      * @return array{status:string, name:string, id?:int, slug?:string}
      *   status = published | duplicate | notfound
      */
-    public static function publish(string $name, ?string $url = null, ?string $osSlug = null, bool $withAi = true): array
+    public static function publish(string $name, ?string $url = null, ?string $osSlug = null, bool $withAi = true, ?bool $screenshot = null): array
     {
         $name = trim($name);
         $url = $url !== null ? trim($url) : '';
@@ -37,18 +37,33 @@ final class Publisher
             return ['status' => 'duplicate', 'name' => (string) $d['name']];
         }
 
+        // Pull accurate facts (version, file size, release date) from the
+        // official page's schema.org data before creating the record.
+        $site = trim((string) ($d['official_website'] ?? $d['official_download_url'] ?? ''));
+        if ($site !== '' && ($page = self::fetch($site)) !== null) {
+            $d = SoftwareLookup::enrichFromPage($d, $page['html']);
+        }
+
+        // Support publishing to several platforms at once (comma-separated slugs).
         $osIds = [];
         if ($osSlug) {
-            $osId = (int) (Database::scalar('SELECT id FROM operating_systems WHERE slug = :s', ['s' => $osSlug]) ?: 0);
-            if ($osId) {
-                $osIds = [$osId];
+            foreach (explode(',', $osSlug) as $sl) {
+                $sl = trim($sl);
+                if ($sl === '') {
+                    continue;
+                }
+                $osId = (int) (Database::scalar('SELECT id FROM operating_systems WHERE slug = :s', ['s' => $sl]) ?: 0);
+                if ($osId && !in_array($osId, $osIds, true)) {
+                    $osIds[] = $osId;
+                }
             }
         }
 
         $id = self::createFromDto($d, $osIds);
 
         // Capture a real website screenshot (free WordPress mShots) when enabled.
-        if ((string) Settings::get('auto_screenshot', '0') === '1' && !empty($d['official_website'])) {
+        $doShot = $screenshot ?? ((string) Settings::get('auto_screenshot', '0') === '1');
+        if ($doShot && !empty($d['official_website'])) {
             $shot = 'https://s.wordpress.com/mshots/v1/' . rawurlencode((string) $d['official_website']) . '?w=1280';
             try {
                 Database::run('INSERT INTO software_screenshots (software_id, url, sort_order) VALUES (:s, :u, 2)', ['s' => $id, 'u' => $shot]);

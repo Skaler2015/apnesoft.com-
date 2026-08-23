@@ -88,6 +88,7 @@ $router->get('/admin/software/import-url', [SoftwareAdminController::class, 'imp
 $router->get('/admin/software/suggest', [SoftwareAdminController::class, 'suggest']);
 $router->get('/admin/software/bulk', [SoftwareAdminController::class, 'bulk']);
 $router->get('/admin/software/discover', [SoftwareAdminController::class, 'discover']);
+$router->get('/admin/software/discover-search', [SoftwareAdminController::class, 'discoverSearch']);
 $router->post('/admin/software/publish-one', [SoftwareAdminController::class, 'publishOne']);
 $router->post('/admin/software/queue', [SoftwareAdminController::class, 'queueBackground']);
 $router->post('/admin/software/pack', [SoftwareAdminController::class, 'pack']);
