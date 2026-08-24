@@ -91,12 +91,17 @@
   var finderForm = document.getElementById('finder-form');
   if (finderForm) {
     var selectedNeed = '';
-    finderForm.querySelectorAll('.finder-chip').forEach(function (chip) {
+    // "What do you need" — single select.
+    finderForm.querySelectorAll('.finder-options[data-group="need"] .finder-chip').forEach(function (chip) {
       chip.addEventListener('click', function () {
-        finderForm.querySelectorAll('.finder-chip').forEach(function (c) { c.classList.remove('is-active'); });
+        finderForm.querySelectorAll('.finder-options[data-group="need"] .finder-chip').forEach(function (c) { c.classList.remove('is-active'); });
         chip.classList.add('is-active');
         selectedNeed = chip.getAttribute('data-value');
       });
+    });
+    // Preferences — multi select.
+    finderForm.querySelectorAll('.finder-options[data-group="prefs"] .finder-chip').forEach(function (chip) {
+      chip.addEventListener('click', function () { chip.classList.toggle('is-active'); });
     });
 
     finderForm.addEventListener('submit', function (e) {
@@ -106,6 +111,9 @@
       fd.set('_csrf', finderForm.getAttribute('data-csrf') || '');
       var params = new URLSearchParams();
       fd.forEach(function (v, k) { params.append(k, v); });
+      finderForm.querySelectorAll('.finder-options[data-group="prefs"] .finder-chip.is-active').forEach(function (c) {
+        params.append('prefs[]', c.getAttribute('data-pref'));
+      });
 
       var results = document.getElementById('finder-results');
       var grid = results.querySelector('[data-results-grid]');
@@ -122,12 +130,20 @@
           return;
         }
         grid.innerHTML = data.matches.map(function (m) {
-          var reasons = (m.match_reasons || []).map(function (r) { return '<span class="chip chip-soft">' + escapeHtml(r) + '</span>'; }).join(' ');
-          return '<article class="card"><a class="card-link" href="' + base + '/software/' + encodeURIComponent(m.slug) + '">' +
-            '<div class="card-head"><div class="card-logo">' + escapeHtml((m.name || '?').charAt(0).toUpperCase()) + '</div>' +
-            '<div class="card-title"><h3>' + escapeHtml(m.name) + '</h3><span class="muted small">' + escapeHtml(m.developer_name || '') + '</span></div></div>' +
-            '<p class="card-desc">' + escapeHtml((m.short_description || '').slice(0, 90)) + '</p>' +
-            '<div class="card-meta"><span class="chip">Match ' + (m.match_score || 0) + '</span> ' + reasons + '</div></a></article>';
+          var reasons = (m.match_reasons || []).map(function (r) { return '<span class="reason-ok">✓ ' + escapeHtml(r) + '</span>'; }).join('');
+          var cautions = (m.cautions || []).map(function (r) { return '<span class="reason-warn">⚠ ' + escapeHtml(r) + '</span>'; }).join('');
+          var score = m.match_score || 0;
+          var lvlClass = score >= 90 ? 'ms-exc' : score >= 75 ? 'ms-good' : score >= 50 ? 'ms-ok' : 'ms-low';
+          var logo = m.logo ? '<img src="' + escapeHtml(m.logo) + '" alt="" width="40" height="40">' : escapeHtml((m.name || '?').charAt(0).toUpperCase());
+          var compat = (m.compatibility != null) ? '<span class="chip chip-soft small" title="Device compatibility">🖥️ ' + m.compatibility + '% compatible</span>' : '';
+          return '<article class="card match-card"><a class="card-link" href="' + base + '/software/' + encodeURIComponent(m.slug) + '">' +
+            '<div class="card-head"><div class="card-logo">' + logo + '</div>' +
+            '<div class="card-title"><h3>' + escapeHtml(m.name) + '</h3><span class="muted small">' + escapeHtml(m.developer_name || '') + '</span></div>' +
+            '<span class="match-score ' + lvlClass + '">' + score + '<small>%</small></span></div>' +
+            '<p class="card-desc">' + escapeHtml((m.short_description || '').slice(0, 100)) + '</p>' +
+            '<div class="match-why">' + reasons + cautions + '</div>' +
+            '<div class="card-meta"><span class="chip chip-soft small">' + escapeHtml(m.match_level || '') + '</span> ' + compat + '</div>' +
+            '</a></article>';
         }).join('');
         results.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }).catch(function () {

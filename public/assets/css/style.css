@@ -292,3 +292,16 @@ h1,h2,h3,h4{line-height:1.2;margin:0 0 .4em}
   .info-cards{grid-template-columns:1fr 1fr}
   .card-grid{grid-template-columns:1fr 1fr}
 }
+
+/* --- Software Finder: match cards --- */
+.match-card .card-head{position:relative}
+.match-score{margin-left:auto;font-weight:800;font-size:1.15rem;line-height:1;padding:6px 9px;border-radius:10px;color:#fff;align-self:flex-start}
+.match-score small{font-size:.62rem;font-weight:700;opacity:.85}
+.ms-exc{background:linear-gradient(135deg,#16a34a,#0ea5e9)}
+.ms-good{background:linear-gradient(135deg,#0ea5e9,#4f46e5)}
+.ms-ok{background:linear-gradient(135deg,#d97706,#f59e0b)}
+.ms-low{background:#6b7280}
+.match-why{display:flex;flex-direction:column;gap:3px;margin:2px 0 8px}
+.reason-ok{font-size:.8rem;color:var(--green)}
+.reason-warn{font-size:.8rem;color:var(--yellow)}
+.finder-chip.is-active{background:var(--brand);color:#fff;border-color:var(--brand)}

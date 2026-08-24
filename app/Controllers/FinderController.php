@@ -24,76 +24,49 @@ final class FinderController extends Controller
         ]);
     }
 
-    /** POST /software-finder — returns ranked matches (JSON). */
+    /** POST /software-finder — returns ranked matches (JSON) via the engine. */
     public function match(array $args = []): never
     {
         \App\Core\Csrf::check($this->request);
 
-        $need    = $this->request->str('need');        // category slug or free text
-        $osSlug  = $this->request->str('os');
-        $ram     = $this->request->int('ram');          // MB
-        $freeOnly = $this->request->str('free') === '1';
-        $openOnly = $this->request->str('open_source') === '1';
-        $level   = $this->request->str('level');        // beginner|professional
-
-        $where = ['s.status = "published"'];
-        $params = [];
-        $joins = '';
-
-        $categoryId = (int) (Database::scalar('SELECT id FROM categories WHERE slug = :s', ['s' => $need]) ?: 0);
-        if ($categoryId) {
-            $where[] = '(s.category_id = :cat OR s.subcategory_id = :cat2)';
-            $params['cat'] = $categoryId;
-            $params['cat2'] = $categoryId;
-        } elseif ($need !== '') {
-            $where[] = '(s.name LIKE :need OR s.short_description LIKE :need2)';
-            $params['need'] = '%' . $need . '%';
-            $params['need2'] = '%' . $need . '%';
-        }
-        if ($osSlug !== '') {
-            $joins .= ' JOIN software_operating_systems sos ON sos.software_id = s.id
-                        JOIN operating_systems o ON o.id = sos.os_id AND o.slug = :os';
-            $params['os'] = $osSlug;
-        }
-        if ($freeOnly) {
-            $where[] = 's.price_type IN ("free","open_source","freemium")';
-        }
-        if ($openOnly) {
-            $where[] = 's.is_open_source = 1';
-        }
-        if ($ram > 0) {
-            $where[] = '(s.min_ram_mb IS NULL OR s.min_ram_mb <= :ram)';
-            $params['ram'] = $ram;
-        }
-
-        $sql = 'SELECT s.* FROM software s ' . $joins . ' WHERE ' . implode(' AND ', $where) . ' LIMIT 60';
-        $candidates = Database::all($sql, $params);
-
-        // Transparent scoring.
-        $scored = [];
-        foreach ($candidates as $c) {
-            $score = 0;
-            $reasons = [];
-            if ($categoryId && ((int) $c['category_id'] === $categoryId || (int) $c['subcategory_id'] === $categoryId)) {
-                $score += 40; $reasons[] = 'Matches your need';
+        // Budget: explicit choice, or the legacy free/open checkboxes.
+        $budget = $this->request->str('budget');
+        if ($budget === '') {
+            if ($this->request->str('open_source') === '1') {
+                $budget = 'open_source';
+            } elseif ($this->request->str('free') === '1') {
+                $budget = 'free';
             }
-            if ($ram > 0 && $c['min_ram_mb'] !== null && (int) $c['min_ram_mb'] <= $ram) {
-                $score += 20; $reasons[] = 'Runs within your RAM';
-            }
-            if ($freeOnly && in_array($c['price_type'], ['free', 'open_source', 'freemium'], true)) {
-                $score += 15; $reasons[] = 'Free';
-            }
-            if ($openOnly && (int) $c['is_open_source'] === 1) {
-                $score += 10; $reasons[] = 'Open source';
-            }
-            $score += min(15, (int) $c['trust_score'] / 7);
-            $c['match_score'] = (int) round($score);
-            $c['match_reasons'] = $reasons;
-            $scored[] = $c;
         }
-        usort($scored, fn($a, $b) => $b['match_score'] <=> $a['match_score']);
-        $scored = array_slice($scored, 0, 12);
 
-        $this->json(['count' => count($scored), 'matches' => $scored]);
+        $result = \App\Services\Recommendation\RecommendationEngine::recommend([
+            'need'   => $this->request->str('need'),
+            'os'     => $this->request->str('os'),
+            'ram'    => $this->request->int('ram'),
+            'budget' => $budget,
+            'level'  => $this->request->str('level'),
+            'prefs'  => array_map('strval', (array) $this->request->input('prefs', [])),
+            'limit'  => 12,
+        ]);
+
+        $this->json([
+            'count'   => $result['count'],
+            'matches' => array_map(static function (array $m): array {
+                return [
+                    'slug'              => $m['slug'] ?? '',
+                    'name'              => $m['name'] ?? '',
+                    'developer_name'    => $m['developer_name'] ?? '',
+                    'short_description' => $m['short_description'] ?? '',
+                    'logo'              => $m['logo'] ?? '',
+                    'price_type'        => $m['price_type'] ?? '',
+                    'match_score'       => (int) ($m['match_score'] ?? 0),
+                    'match_level'       => $m['match_level'] ?? '',
+                    'compatibility'     => (int) ($m['compatibility'] ?? 0),
+                    'compat_level'      => $m['compat_level'] ?? '',
+                    'match_reasons'     => $m['match_reasons'] ?? [],
+                    'cautions'          => $m['cautions'] ?? [],
+                ];
+            }, $result['matches']),
+        ]);
     }
 }
