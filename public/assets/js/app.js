@@ -157,4 +157,40 @@
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
     });
   }
+
+  // --- Detail page: "Will it run on your PC?" compatibility widget ----------
+  var compatBox = document.querySelector('.compat-box');
+  if (compatBox) {
+    var osText = (compatBox.getAttribute('data-os') || '').toLowerCase();
+    var minRam = parseInt(compatBox.getAttribute('data-minram') || '', 10);
+    var osSel = compatBox.querySelector('.compat-os');
+    var ramSel = compatBox.querySelector('.compat-ram');
+    var out = compatBox.querySelector('.compat-result');
+    var OSKW = { windows: 'windows', macos: 'mac', linux: 'linux', android: 'android', ios: 'ios' };
+    // Default the OS picker to a platform this software actually lists.
+    ['macos', 'android', 'ios', 'linux', 'windows'].forEach(function (o) {
+      if (osText.indexOf(OSKW[o]) >= 0) osSel.value = o;
+    });
+    function level(p) { return p >= 90 ? ['Excellent Match', 'ms-exc'] : p >= 75 ? ['Good Match', 'ms-good'] : p >= 50 ? ['May Work', 'ms-ok'] : ['Not Recommended', 'ms-low']; }
+    function gb(mb) { return mb >= 1024 ? Math.round(mb / 1024) + ' GB' : mb + ' MB'; }
+    compatBox.querySelector('.compat-go').addEventListener('click', function () {
+      var osKw = OSKW[osSel.value] || '';
+      var ram = parseInt(ramSel.value, 10);
+      var reasons = [], cautions = [], plat, hw;
+      if (!osText) { plat = 10; cautions.push('Platform support not listed'); }
+      else if (osText.indexOf(osKw) >= 0) { plat = 20; reasons.push('Supports ' + osSel.options[osSel.selectedIndex].text); }
+      else { plat = 0; cautions.push('May not support ' + osSel.options[osSel.selectedIndex].text); }
+      if (!minRam) { hw = 10; cautions.push('RAM requirement not listed'); }
+      else if (minRam <= ram) { hw = 20; reasons.push('Runs within your ' + gb(ram) + ' RAM'); }
+      else { hw = 0; cautions.push('Needs more than ' + gb(ram) + ' RAM (min ' + gb(minRam) + ')'); }
+      var pct = Math.round((plat + hw) / 40 * 100), lv = level(pct);
+      out.innerHTML =
+        '<div class="compat-score ' + lv[1] + '">' + pct + '<small>%</small><span>' + lv[0] + '</span></div>' +
+        '<div class="compat-why">' +
+          reasons.map(function (r) { return '<span class="reason-ok">✓ ' + escapeHtml(r) + '</span>'; }).join('') +
+          cautions.map(function (r) { return '<span class="reason-warn">⚠ ' + escapeHtml(r) + '</span>'; }).join('') +
+        '</div>';
+      out.hidden = false;
+    });
+  }
 })();

@@ -203,6 +203,33 @@ $hasDownload = !empty($s['official_download_url']) || !empty($s['official_websit
     </div>
 
     <aside class="detail-aside">
+        <div class="aside-box compat-box"
+             data-os="<?= e(mb_strtolower((string) ($s['operating_system'] ?? ''))) ?>"
+             data-minram="<?= e((string) ($s['min_ram_mb'] ?? '')) ?>">
+            <h3>🖥️ Will it run on your PC?</h3>
+            <p class="muted small" style="margin:.2em 0 .8em">Pick your system to check compatibility.</p>
+            <label class="compat-lbl">Your OS
+                <select class="compat-os">
+                    <option value="windows">Windows</option>
+                    <option value="macos">macOS</option>
+                    <option value="linux">Linux</option>
+                    <option value="android">Android</option>
+                    <option value="ios">iOS</option>
+                </select>
+            </label>
+            <label class="compat-lbl">Your RAM
+                <select class="compat-ram">
+                    <option value="2048">2 GB</option>
+                    <option value="4096">4 GB</option>
+                    <option value="8192" selected>8 GB</option>
+                    <option value="16384">16 GB</option>
+                    <option value="32768">32 GB+</option>
+                </select>
+            </label>
+            <button type="button" class="btn btn-primary btn-block compat-go" style="margin-top:10px">Check compatibility</button>
+            <div class="compat-result" hidden></div>
+        </div>
+
         <?php if (!empty($alternatives)): ?>
         <div class="aside-box">
             <h3>Best Alternatives</h3>

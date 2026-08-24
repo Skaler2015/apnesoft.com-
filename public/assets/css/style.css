@@ -305,3 +305,12 @@ h1,h2,h3,h4{line-height:1.2;margin:0 0 .4em}
 .reason-ok{font-size:.8rem;color:var(--green)}
 .reason-warn{font-size:.8rem;color:var(--yellow)}
 .finder-chip.is-active{background:var(--brand);color:#fff;border-color:var(--brand)}
+
+/* --- Detail page: compatibility widget --- */
+.compat-box .compat-lbl{display:flex;flex-direction:column;gap:4px;font-size:.82rem;font-weight:600;color:var(--muted);margin-top:8px}
+.compat-box select{padding:.55em;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);color:var(--text)}
+.compat-result{margin-top:14px;padding-top:14px;border-top:1px solid var(--border)}
+.compat-score{display:flex;align-items:baseline;gap:8px;font-weight:800;font-size:2rem;line-height:1;color:#fff;border-radius:12px;padding:12px 14px;margin-bottom:10px}
+.compat-score small{font-size:.7rem;font-weight:700;opacity:.85}
+.compat-score span{margin-left:auto;font-size:.82rem;font-weight:700;align-self:center}
+.compat-why{display:flex;flex-direction:column;gap:4px}
