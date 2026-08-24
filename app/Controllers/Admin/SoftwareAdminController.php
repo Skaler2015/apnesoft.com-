@@ -826,6 +826,9 @@ final class SoftwareAdminController extends AdminController
         if (!preg_match('~^https?://~i', $url)) {
             $this->json(['ok' => false, 'status' => 0, 'message' => 'Enter a full URL.']);
         }
+        if (($why = \App\Services\Security\SafeUrl::reject($url)) !== null) {
+            $this->json(['ok' => false, 'status' => 0, 'message' => $why]);
+        }
         $resp = \App\Support\Http::get($url, ['Accept: */*'], 10);
         $status = (int) ($resp['status'] ?? 0);
         $this->json(['ok' => $status >= 200 && $status < 400, 'status' => $status]);
@@ -860,6 +863,9 @@ final class SoftwareAdminController extends AdminController
         $url = trim($this->request->str('url'));
         if (!preg_match('~^https?://~i', $url)) {
             $this->json(['ok' => false, 'message' => 'Enter the download URL first.']);
+        }
+        if (($why = \App\Services\Security\SafeUrl::reject($url)) !== null) {
+            $this->json(['ok' => false, 'message' => $why]);
         }
         $bytes = \App\Support\Http::contentLength($url);
         if ($bytes === null || $bytes <= 0) {

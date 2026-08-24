@@ -148,6 +148,10 @@ final class Publisher
         if (!preg_match('~^https?://~i', $url)) {
             $url = 'https://' . $url;
         }
+        // SSRF guard: never fetch internal/private addresses.
+        if (!\App\Services\Security\SafeUrl::isSafe($url)) {
+            return null;
+        }
         $resp = Http::get($url, ['Accept: text/html'], 12);
         if ($resp['status'] < 200 || $resp['status'] >= 400 || $resp['body'] === '') {
             return null;
