@@ -17,6 +17,13 @@ final class Response
         header('X-Content-Type-Options: nosniff');
         header('X-Frame-Options: SAMEORIGIN');
         header('Referrer-Policy: strict-origin-when-cross-origin');
+        // Enforce HTTPS for a year (incl. subdomains) once served over TLS.
+        $https = ($_SERVER['HTTPS'] ?? '') === 'on'
+            || ($_SERVER['SERVER_PORT'] ?? '') === '443'
+            || strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https';
+        if ($https) {
+            header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
+        }
         header('X-XSS-Protection: 0');
         header('Permissions-Policy: geolocation=(), microphone=(), camera=()');
         // A conservative CSP; assets are self-hosted.

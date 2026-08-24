@@ -162,6 +162,22 @@ final class SoftwareAdminController extends AdminController
                 try { Database::run($sql); } catch (\Throwable $e) {}
             }
         }
+        // Indexes for the columns admin/discover order by (idempotent).
+        $indexes = [
+            'idx_software_created' => 'created_at',
+            'idx_software_updatedat' => 'updated_at',
+        ];
+        foreach ($indexes as $idx => $col) {
+            $has = Database::scalar(
+                "SELECT COUNT(*) FROM information_schema.STATISTICS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'software' AND INDEX_NAME = :i", ['i' => $idx]);
+            $colExists = Database::scalar(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'software' AND COLUMN_NAME = :c", ['c' => $col]);
+            if ((int) $has === 0 && (int) $colExists > 0) {
+                try { Database::run("ALTER TABLE software ADD INDEX $idx ($col)"); } catch (\Throwable $e) {}
+            }
+        }
     }
 
     /** Validate + store one uploaded image; returns a root-relative URL or null. */
@@ -177,6 +193,23 @@ final class SoftwareAdminController extends AdminController
         $ext = strtolower(pathinfo((string) $file['name'], PATHINFO_EXTENSION));
         if (!isset($allowed[$ext])) {
             return null;
+        }
+        // Verify real content type — reject a non-image disguised with an image extension.
+        $tmp = (string) $file['tmp_name'];
+        if ($ext === 'svg') {
+            // SVG is XML: block scripts/handlers to avoid stored XSS.
+            $svg = (string) @file_get_contents($tmp, false, null, 0, 200000);
+            if ($svg === '' || stripos($svg, '<svg') === false || preg_match('~<script|onload\s*=|onerror\s*=|javascript:~i', $svg)) {
+                return null;
+            }
+        } else {
+            $mime = function_exists('finfo_open')
+                ? (finfo_file(finfo_open(FILEINFO_MIME_TYPE), $tmp) ?: '')
+                : (string) (getimagesize($tmp)['mime'] ?? '');
+            $okMimes = ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/x-icon', 'image/vnd.microsoft.icon'];
+            if (!in_array($mime, $okMimes, true)) {
+                return null;
+            }
         }
         $dir = \App\Core\Config::get('paths.public') . '/assets/uploads';
         if (!is_dir($dir) && !@mkdir($dir, 0775, true) && !is_dir($dir)) {
