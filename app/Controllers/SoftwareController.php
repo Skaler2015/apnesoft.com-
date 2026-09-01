@@ -74,6 +74,8 @@ final class SoftwareController extends Controller
             ])],
             'software'        => $software,
             'category'        => $category,
+            'trust'           => \App\Services\TrustScore::explain($software),
+            'verifyEvents'    => \App\Services\VerificationLog::recent($id, 12),
             'versions'        => Software::versions($id),
             'features'        => Software::features($id, 'feature'),
             'pros'            => Software::features($id, 'pro'),

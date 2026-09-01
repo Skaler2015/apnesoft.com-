@@ -139,6 +139,10 @@ final class Publisher
                 Database::run('INSERT INTO software_screenshots (software_id, url, sort_order) VALUES (:s, :u, 1)', ['s' => $id, 'u' => $d['screenshot']]);
             } catch (\Throwable $e) {}
         }
+        VerificationLog::log($id, 'published', 'Imported — official source recorded');
+        if (!empty($data['version'])) {
+            VerificationLog::log($id, 'version', 'Version recorded: ' . $data['version']);
+        }
         return $id;
     }
 

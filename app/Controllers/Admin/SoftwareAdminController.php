@@ -1125,6 +1125,10 @@ final class SoftwareAdminController extends AdminController
         if ($data['status'] === 'published') {
             Sitemap::generateAll();
         }
+        \App\Services\VerificationLog::log($id, 'published', 'Added — official source recorded');
+        if (!empty($data['version'])) {
+            \App\Services\VerificationLog::log($id, 'version', 'Version recorded: ' . $data['version']);
+        }
         $this->audit('software.create', 'software', $id, $name);
 
         // "Save & add another" keeps you on a fresh form for rapid entry.
@@ -1346,6 +1350,10 @@ final class SoftwareAdminController extends AdminController
 
         Seo::generateForSoftware($id);
         if ($data['status'] === 'published') { Sitemap::generateAll(); }
+        \App\Services\VerificationLog::log($id, 'verified', 'Details reviewed & updated');
+        if (!empty($data['version']) && (string) $data['version'] !== (string) ($software['version'] ?? '')) {
+            \App\Services\VerificationLog::log($id, 'version', 'Version updated to ' . $data['version']);
+        }
         $this->audit('software.update', 'software', $id);
 
         Session::flash('ok', '✅ Changes saved.');

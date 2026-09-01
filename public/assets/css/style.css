@@ -314,3 +314,28 @@ h1,h2,h3,h4{line-height:1.2;margin:0 0 .4em}
 .compat-score small{font-size:.7rem;font-weight:700;opacity:.85}
 .compat-score span{margin-left:auto;font-size:.82rem;font-weight:700;align-self:center}
 .compat-why{display:flex;flex-direction:column;gap:4px}
+
+/* --- Trust & verification (detail page) --- */
+.trust-head{display:flex;align-items:center;gap:14px;margin-bottom:14px}
+.trust-badge{display:flex;align-items:baseline;gap:2px;font-weight:800;font-size:1.8rem;line-height:1;color:#fff;border-radius:12px;padding:12px 14px}
+.trust-badge small{font-size:.62rem;font-weight:700;opacity:.85}
+.tb-highly-trusted{background:linear-gradient(135deg,#16a34a,#0ea5e9)}
+.tb-verified{background:linear-gradient(135deg,#0ea5e9,#4f46e5)}
+.tb-limited-verification{background:linear-gradient(135deg,#d97706,#f59e0b)}
+.tb-needs-review{background:#6b7280}
+.trust-level{font-size:1.05rem}
+.trust-factors{list-style:none;padding:0;margin:0;display:grid;grid-template-columns:1fr;gap:6px}
+@media(min-width:560px){.trust-factors{grid-template-columns:1fr 1fr}}
+.trust-factors li{display:flex;align-items:center;gap:9px;background:var(--surface-2);border:1px solid var(--border);border-radius:9px;padding:8px 11px;font-size:.86rem}
+.trust-factors .tf-ic{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-size:.72rem;font-weight:800;flex:0 0 auto}
+.tf-ok .tf-ic{background:color-mix(in srgb,var(--green) 20%,transparent);color:var(--green)}
+.tf-no{opacity:.6}
+.tf-no .tf-ic{background:var(--surface);color:var(--muted);border:1px solid var(--border)}
+.tf-pts{margin-left:auto;font-weight:700;color:var(--muted);font-family:ui-monospace,monospace;font-size:.78rem}
+.verify-timeline{list-style:none;padding:0;margin:0;position:relative}
+.verify-timeline li{display:flex;align-items:center;gap:11px;padding:7px 0;border-left:2px solid var(--border);margin-left:6px;padding-left:16px;position:relative}
+.verify-timeline .vt-dot{position:absolute;left:-6px;width:11px;height:11px;border-radius:50%;background:var(--brand);border:2px solid var(--surface)}
+.verify-timeline .vt-version{background:var(--green)}
+.verify-timeline .vt-published{background:var(--brand)}
+.verify-timeline .vt-verified{background:#0ea5e9}
+.verify-timeline .vt-text{flex:1;font-size:.9rem}

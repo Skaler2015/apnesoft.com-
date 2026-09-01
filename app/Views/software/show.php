@@ -181,6 +181,40 @@ $hasDownload = !empty($s['official_download_url']) || !empty($s['official_websit
             </div>
         </section>
 
+        <?php if (!empty($trust)): $tl = strtolower(str_replace(' ', '-', $trust['level'])); ?>
+        <section class="detail-section trust-section">
+            <h2>Trust &amp; verification</h2>
+            <div class="trust-head">
+                <div class="trust-badge tb-<?= e($tl) ?>"><?= (int) $trust['score'] ?><small>/100</small></div>
+                <div>
+                    <strong class="trust-level"><?= e($trust['level']) ?></strong>
+                    <p class="muted small" style="margin:.2em 0 0">Based only on verifiable signals — source, links and data checks. This is not a malware/safety guarantee.</p>
+                </div>
+            </div>
+            <ul class="trust-factors">
+                <?php foreach ($trust['factors'] as $f): ?>
+                    <li class="<?= $f['met'] ? 'tf-ok' : 'tf-no' ?>"><span class="tf-ic"><?= $f['met'] ? '✓' : '—' ?></span><span><?= e($f['label']) ?></span><span class="tf-pts">+<?= (int) $f['points'] ?></span></li>
+                <?php endforeach; ?>
+            </ul>
+        </section>
+        <?php endif; ?>
+
+        <?php if (!empty($verifyEvents)): ?>
+        <section class="detail-section">
+            <h2>Verification history</h2>
+            <ol class="verify-timeline">
+                <?php foreach ($verifyEvents as $ev): ?>
+                    <li>
+                        <span class="vt-dot vt-<?= e($ev['type']) ?>"></span>
+                        <span class="vt-text"><?= e($ev['detail'] ?: ucfirst((string) $ev['type'])) ?></span>
+                        <span class="vt-date muted small"><?= e(time_ago($ev['created_at'])) ?></span>
+                    </li>
+                <?php endforeach; ?>
+            </ol>
+            <p class="muted small">Automatic checks and admin updates are logged here for transparency.</p>
+        </section>
+        <?php endif; ?>
+
         <?php if (count($versions) > 1): ?>
         <section class="detail-section"><h2>Older Versions</h2>
             <table class="version-table">
